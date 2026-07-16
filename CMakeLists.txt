@@ -18,10 +18,12 @@ find_library(PCAP_LIBRARY
 
 add_executable(netwatch
     src/main.cpp
+    src/PacketParser.cpp
 )
 
 target_include_directories(netwatch PRIVATE
     ${PCAP_INCLUDE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
 
 target_link_libraries(netwatch PRIVATE
