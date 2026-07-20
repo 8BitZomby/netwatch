@@ -73,7 +73,8 @@ int main(int argc, char* argv[]) {
             ++tftpPacketCount;
 
         // For first packet, print the packet information
-        if(packetCount == 1) {
+        //if(packetCount == 1) {
+        if(packetInfo.tcpOptionsLength > 0) {
             printPacketInfo(packetInfo);
         }
         // Print header information for the first 5 packets
@@ -86,7 +87,7 @@ int main(int argc, char* argv[]) {
     }
     pcap_close(capture);
     // Print number of packets processed
-    std::cout << "\nPackets processed: " << packetCount << "\n";
+    std::cout << "Packets processed: " << packetCount << "\n";
     // Print packet counts
     std::cout << "IPv4 packets: " << ipv4PacketCount << "\n"
             << "TCP packets: " << tcpPacketCount << "\n"
@@ -155,7 +156,36 @@ void printPacketInfo(const PacketInfo& packetInfo) {
                 << "TCP sequence number: " << packetInfo.tcpSequenceNumber << "\n"
                 << "TCP acknowledgement number: " << packetInfo.tcpAcknowledgementNumber << "\n"
                 << "TCP data offset: " << static_cast<int>(packetInfo.tcpDataOffset) << "\n"
-                << "TCP header length: " << packetInfo.tcpHeaderLength << "\n";
+                << "TCP header length: " << packetInfo.tcpHeaderLength << "\n"
+                << "TCP options length: " << packetInfo.tcpOptionsLength << " bytes\n";
+        if(packetInfo.tcpOptionsLength > 0) {
+            std::cout << "TCP options start at byte: " << packetInfo.tcpOptionsOffset << "\n";
+            std::cout << "TCP option kinds: ";
+            for(std::uint8_t optionKind : packetInfo.tcpOptionsKinds) {
+                std::cout << static_cast<int>(optionKind) << " ";
+            }
+            std::cout << "\n";
+            if(packetInfo.tcpMssPresent) {
+                std::cout << "TCP MSS: " << packetInfo.tcpMss << " bytes\n";
+            }
+            if(packetInfo.tcpWindowScalePresent) {
+                std::cout << "TCP window scale: " << static_cast<int>(packetInfo.tcpWindowScale) << "\n";
+            }
+            if(packetInfo.tcpSackPermitted) {
+                std::cout << "TCP SACK permitted: yes\n";
+            }
+            if(packetInfo.tcpSackPresent) {
+                std::cout << "TCP SACK blocks:\n";
+                for(std::size_t i = 0; i + 1 < packetInfo.tcpSackEdges.size(); i+=2) {
+                    std::cout << " Left edge: " << packetInfo.tcpSackEdges[i]
+                            << ", Right edge: " << packetInfo.tcpSackEdges[i + 1] << "\n";
+                }
+            }
+            if(packetInfo.tcpTimestampsPresent) {
+                std::cout << "TCP timestamp value: " << packetInfo.tcpTimestampValue << "\n"
+                        << "TCP timestamp echo reply: " << packetInfo.tcpTimestampEchoReply << "\n";
+            }
+        }
         if(packetInfo.ipTotalLength != 0) {
             std::cout << "TCP length: " << packetInfo.tcpLength << " bytes\n"
                     << "TCP payload length: " << packetInfo.tcpPayloadLength << " bytes\n"

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <vector>
 #include <array>
 #include <string>
 #include <cstddef>
@@ -27,11 +28,26 @@ struct PacketInfo {
     std::uint16_t sourcePort = 0;
     std::uint16_t destinationPort = 0;
 
-    // TCP
+    // TCP header fields
     std::uint32_t tcpSequenceNumber = 0;
     std::uint32_t tcpAcknowledgementNumber = 0;
     std::uint8_t tcpDataOffset = 0;
     std::size_t tcpHeaderLength = 0;
+    // TCP options
+    std::size_t tcpOptionsLength = 0;
+    std::size_t tcpOptionsOffset = 0;
+    std::vector<std::uint8_t> tcpOptionsKinds;
+    bool tcpMssPresent = false;
+    std::uint16_t tcpMss = 0;
+    bool tcpWindowScalePresent = false;
+    std::uint8_t tcpWindowScale = 0;
+    bool tcpSackPermitted = false;
+    bool tcpSackPresent = false;
+    std::vector<std::uint32_t> tcpSackEdges;
+    bool tcpTimestampsPresent = false;
+    std::uint32_t tcpTimestampValue = 0;
+    std::uint32_t tcpTimestampEchoReply = 0;
+    // TCP derived lengths
     std::uint16_t tcpLength = 0;
     std::uint16_t tcpPayloadLength = 0;
     std::size_t tcpPayloadOffset = 0;

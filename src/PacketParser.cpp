@@ -16,6 +16,7 @@ constexpr std::uint16_t TFTPPort = 69;
 //void parseTCP(const u_char* data, std::size_t capturedLength, std::size_t transportOffset, PacketInfo& packetInfo);
 //void parseICMP(const u_char* data, std::size_t capturedLength, std::size_t transportOffset);
 
+
 /**
  * addChecsumWord - parse TCP Helper
  * Add a 16-bit value to a one's complement checksum and wrap
@@ -132,6 +133,102 @@ void parseICMP(const u_char* data, std::size_t capturedLength, std::size_t trans
 }
 
 /**
+ * parseTCPOptions
+ */
+bool parseTCPOptions(const u_char* data, std::size_t optionsOffset, std::size_t optionsLength, PacketInfo& packetInfo) {
+    // The first byte immediately after the fixed 20-byte TCP header
+    std::size_t currentOffset = optionsOffset;
+    // The first byte beyond the TCP options area
+    std::size_t optionsEnd = optionsOffset + optionsLength;
+    
+    while(currentOffset < optionsEnd) {
+        // Every TCP option begins with a 1-byte kind field
+        std::uint8_t optionKind = data[currentOffset];
+
+        // Store the option kind in packet information
+        packetInfo.tcpOptionsKinds.push_back(optionKind);
+
+        // Kind 0: End of option list
+        if(optionKind == 0) { break; }
+
+        // Kind 1: No operation 
+        // This option occupies only one byte and has no length field
+        if(optionKind == 1) {
+            ++currentOffset;
+            continue;
+        }
+        // Other options must contain a kind and length byte
+        if(currentOffset + 1 >= optionsEnd) {
+            std::cerr << "Truncated TCP options\n";
+            return false;
+        }
+        // The length field includes the kind and length bytes
+        std::uint8_t currentLength = data[currentOffset + 1];
+
+        // A multi-byte option cannot be shorter than Kind + Length
+        if(currentLength < 2) {
+            std::cerr << "Invalid TCP option length\n";
+            return false;
+        }
+        // Ensure this option does not extend beyond the TCP header
+        if(currentOffset + currentLength > optionsEnd) {
+            std::cerr << "Truncated TCP option\n";
+            return false;
+        }
+        // Kind 2: Max segment size
+        if(optionKind == 2) {
+            if(currentLength != 4) {
+                std::cerr << "Invalid TCP MSS option length\n";
+                return false;
+            }
+            packetInfo.tcpMss = readUint16BigEndian(data, currentOffset + 2);
+            packetInfo.tcpMssPresent = true;
+        }
+        // Kind 3: Window Scale
+        if(optionKind == 3) {
+            if(currentLength != 3) {
+                std::cerr << "Invalud TCP Window Scale option length\n";
+                return false;
+            }
+            packetInfo.tcpWindowScale = data[currentOffset + 2];
+            packetInfo.tcpWindowScalePresent = true;
+        }
+        // Kind 4: SACK Permitted
+        if(optionKind == 4) {
+            if(currentLength != 2) {
+                std::cerr << "Invalid TCP SACK Permitted option length\n";
+                return false;
+            } 
+            packetInfo.tcpSackPermitted = true;
+        }
+        // Kind 5: Selective Ackowledgement
+        if(optionKind == 5) {
+            if(currentLength < 10 || (currentLength - 2) % 8 != 0) {
+                std::cerr << "Invalid TCP SACK option length\n";
+                return false;
+            }
+            packetInfo.tcpSackPresent = true;
+            for(std::size_t edgeOffset = currentOffset + 2; edgeOffset < currentOffset + currentLength; edgeOffset += 4) {
+                readUint32BigEndian(data, edgeOffset);
+            }
+        }
+        // Kind 8: Timestamps
+        if(optionKind == 8) {
+            if(currentLength != 10) {
+                std::cerr << "Invalid TCP Timestamp option length\n";
+                return false;
+            }
+            packetInfo.tcpTimestampValue = readUint32BigEndian(data, currentOffset + 2);
+            packetInfo.tcpTimestampEchoReply = readUint32BigEndian(data, currentOffset + 6);
+            packetInfo.tcpTimestampsPresent = true;
+        }
+        // Move to the beginning of the next option
+        currentOffset += currentLength;
+    }
+    return true;
+}
+
+/**
  * parseTCP
  */
 void parseTCP(const u_char* data, std::size_t capturedLength, std::size_t transportOffset, PacketInfo& packetInfo) {
@@ -171,6 +268,20 @@ void parseTCP(const u_char* data, std::size_t capturedLength, std::size_t transp
         std::cerr << "Truncated TCP header\n";
         return;
     }
+
+    // Calculate and store the TCP options length
+    // Minimum TCP header is 20 bytes
+    packetInfo.tcpOptionsLength = packetInfo.tcpHeaderLength - 20;
+
+    // Calculat and store where TCP options begins
+    // Fixed portion of a TCP header is 20 bytes
+    packetInfo.tcpOptionsOffset = transportOffset + 20;
+
+    // Validate TCP options when they are present
+    if(packetInfo.tcpOptionsLength > 0 && !parseTCPOptions(data, packetInfo.tcpOptionsOffset, packetInfo.tcpOptionsLength, packetInfo)) {
+        return;
+    }
+
     // Read and store TCP control flags, byte 13 of packet information
     packetInfo.tcpFlags = data[transportOffset + 13];
 
