@@ -17,6 +17,19 @@ constexpr std::uint16_t TFTPPort = 69;
 //void parseICMP(const u_char* data, std::size_t capturedLength, std::size_t transportOffset);
 
 
+// Creates a TCP flow key with the lower endpoint stored first so packets
+// in either direction are assigned to the same connection
+TcpFlowkey makeTcpFlowkey(const PacketInfo& packetInfo) {
+    TcpEndpoint source{packetInfo.sourceIp, packetInfo.sourcePort};
+    TcpEndpoint destination{packetInfo.destinationIp, packetInfo.destinationPort};
+
+    if(destination < source) {
+        return {destination, source};   // Returns TcpFlowkey
+    }
+    return {source, destination};       // Returns TcpFlowkey
+};
+
+
 /**
  * addChecsumWord - parse TCP Helper
  * Add a 16-bit value to a one's complement checksum and wrap

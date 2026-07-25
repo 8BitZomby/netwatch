@@ -7,6 +7,82 @@
 #include <cstdint>
 #include <pcap/pcap.h>
 
+
+// Forward declaration
+struct PacketInfo;
+
+
+// Represents one endpoint of a TCP connection
+struct TcpEndpoint {
+    std::array<std::uint8_t, 4> ip{};
+    std::uint16_t port = 0;
+
+    // Compare endpoints by IP address, then by port number
+    bool operator<(const TcpEndpoint& other) const {
+        // If IP addresses are equal, compare ports
+        // Otherwise, compare IP addresses
+        if(ip != other.ip) {
+            return ip < other.ip;
+        }
+        return port < other.port;
+    }
+
+    // Returns true when both endpoints have the same IP and port number
+    bool operator==(const TcpEndpoint& other) const {
+        return ip == other.ip && port == other.port;
+    }
+
+    // Return true when the endpoints have different IP addresses or port numbers
+    bool operator!=(const TcpEndpoint& other) const {
+        return !(*this == other);
+    }
+};
+
+
+// Identifies a TCP connection using its two endpoints
+struct TcpFlowkey {
+    TcpEndpoint endpointA;
+    TcpEndpoint endpointB;
+
+    // Returns true when both TCP flow keys contain the same two normailzed endpoints
+    bool operator==(const TcpFlowkey& other) const {
+        return endpointA == other.endpointA && endpointB == other.endpointB;
+    }
+    
+    // Orders flow keys by endpoint A first, then endpoint B, so they can be 
+    // stored in an ordered map
+    bool operator<(const TcpFlowkey& other) const {
+        if(endpointA != other.endpointA) {
+            return endpointA < other.endpointA;
+        }
+        return endpointB < other.endpointB;
+    }
+};
+
+
+// Stores packet and byte totals collected for one TCP connection
+struct TcpFlow {
+    // Total packets in both directions
+    std::uint64_t packetCount = 0;
+    // Total TCP payload bytes in both directions
+    std::uint64_t payloadByteCount = 0;
+    // Packets sent from endpoint A to endpoint B
+    std::uint64_t packetsAtoB = 0;
+    // Packets send from endpoint B to endpoint A
+    std::uint64_t packetsBtoA = 0;
+    // TCP payload bytes sent from endpoint A to endpoint B
+    std::uint64_t payloadBytesAtoB = 0;
+    // TCP payload bytes sent from endpoint B to endpoint A
+    std::uint64_t payloadBytesBtoA = 0;
+};
+
+
+// Forward declaration
+// Creates a TCP flow key with the lower endpoint stored first so packets
+// in either direction are assigned to the same connection
+TcpFlowkey makeTcpFlowkey(const PacketInfo& packetInfo);
+
+
 // Stores packet information
 struct PacketInfo {
 
@@ -80,6 +156,7 @@ struct PacketInfo {
     std::string tftpFilename;
     std::string tftpMode;
 };
+
 
 std::uint16_t readUint16BigEndian(const u_char* data, std::size_t offset);
 std::uint32_t readUint32BigEndian(const u_char* date, std::size_t offset);

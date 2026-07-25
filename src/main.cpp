@@ -2,9 +2,12 @@
 #include <cstdint>
 #include <iomanip>
 #include <cstring>
+#include <map>
+
 #include <pcap/pcap.h>
 #include "PacketParser.hpp"
 
+void printTcpEndpoint(const TcpEndpoint& endpoint);
 void printPacketInfo(const PacketInfo& PacketInfo);
 
 int main(int argc, char* argv[]) {
@@ -46,6 +49,9 @@ int main(int argc, char* argv[]) {
     std::uint64_t icmpPacketCount = 0;
     std::uint64_t tftpPacketCount = 0;
 
+    // Stores all TCP connections identified in the capture
+    std::map<TcpFlowkey, TcpFlow> tcpFlows;
+
     // Process pcap one packet at a time
     // pcap_next_ex() returns (0: timeout, 1: successful read, -1: error, -2: EOF)
     while(pcap_next_ex(capture, &header, &data) == 1) {
@@ -59,9 +65,40 @@ int main(int argc, char* argv[]) {
         // Count IPv4 packets
         if(packetInfo.etherType == 0x0800)
             ++ipv4PacketCount;
-        // Count TCP packets
-        if(packetInfo.ipProtocol == 6)
+        // Count TCP packets and update statistics for its direction-independent connection
+        if(packetInfo.ipProtocol == 6) {
+            // Count TCP packets in capture
             ++tcpPacketCount;
+            // Create a direction-independent key for this packet's TCP connection
+            TcpFlowkey flowKey = makeTcpFlowkey(packetInfo);
+            // Find the matching flow, or create a new flow if it does not exist
+            TcpFlow& flow = tcpFlows[flowKey];
+            // Increase the number of packets assigned to this TCP connection
+            ++flow.packetCount;
+            // Add this packet's TCP payload size to the connection's payload total
+            flow.payloadByteCount += packetInfo.tcpPayloadLength;
+
+            // Create an endpoint representing the source of the current TCP packet
+            TcpEndpoint sourceEndpoint{packetInfo.sourceIp, packetInfo.sourcePort};
+            // If the packet's source matches endpoint A, packet travelled A-to-B
+            if(sourceEndpoint == flowKey.endpointA) {
+                // Increase the packet total for traffic from A to B
+                ++flow.packetsAtoB;
+                // Add this packet's TCP payload bytes to the total sent from A-to-B
+                flow.payloadBytesAtoB += packetInfo.tcpPayloadLength;
+            }
+            // If packets source matches endpoint B, packet travelled from B-to-A
+            else if(sourceEndpoint == flowKey.endpointB) {
+                // Increase the packet total for traffic from B to A
+                ++flow.packetsBtoA;
+                // Add this packet's TCP payload bytes to the total sent from B-to-A
+                flow.payloadBytesBtoA += packetInfo.tcpPayloadLength;
+            }
+            // Source should always match either A or B
+            else {
+                std::cerr << "TCP packet source does not match either flow endpoint\n";
+            }
+        }
         // Count UDP packets
         if(packetInfo.ipProtocol == 17)
             ++udpPacketCount;
@@ -94,6 +131,41 @@ int main(int argc, char* argv[]) {
             << "UDP packets: " << udpPacketCount << "\n"
             << "ICMP packets: " << icmpPacketCount << "\n"
             << "TFTP initial requests: " << tftpPacketCount << "\n";
+    
+    // Print the number of direction-independent TCP connections found
+    std::cout << "TCP flows: " << tcpFlows.size() << "\n";
+
+    // Print the endpoints and accumulated stats for each TCP connection
+    for(const auto& [flowKey, flow] : tcpFlows) {
+        std::cout << "\n";
+        // Print the first normalized endpoint
+        printTcpEndpoint(flowKey.endpointA);
+        // Separate the two endpoints with a bidirectional connection marker
+        std::cout << " <-> ";
+        // Print the second normalized endpoint
+        printTcpEndpoint(flowKey.endpointB);
+        // Print the combined total from A-to-B and B-to-A
+        std::cout << "\n  Total Packets: " << flow.packetCount 
+                <<"\n  Payload bytes: " << flow.payloadByteCount;
+        // Print the totals for traffic sent from endpoint A to endpoint B
+        std::cout << "\n  A-to-B packets: " << flow.packetsAtoB
+                << "\n  A-to-B payload bytes: " << flow.payloadBytesAtoB;
+        // Print the totals for traffic sent from endpoint B to eendpoint A
+        std::cout << "\n  B-to-A packets: " << flow.packetsBtoA
+                << "\n  B-to-A payload bytes: " << flow.payloadBytesBtoA << "\n\n";
+        
+    }
+}
+
+// Prints one TCP endpoint in IPv4-address-and-port format
+void printTcpEndpoint(const TcpEndpoint& endpoint) {
+    // Print the four IPv4 address bytes separated by periods
+    std::cout << static_cast<int>(endpoint.ip[0]) << "."
+            << static_cast<int>(endpoint.ip[1]) << "."
+            << static_cast<int>(endpoint.ip[2]) << "."
+            << static_cast<int>(endpoint.ip[3]);
+    // Print the endpoint's port number after the IPv4 address
+    std::cout << ":" << endpoint.port;
 }
 
 void printPacketInfo(const PacketInfo& packetInfo) {
