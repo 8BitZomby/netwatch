@@ -68,12 +68,32 @@ struct TcpFlow {
     std::uint64_t payloadByteCount = 0;
     // Packets sent from endpoint A to endpoint B
     std::uint64_t packetsAtoB = 0;
-    // Packets send from endpoint B to endpoint A
+    // Packets sent from endpoint B to endpoint A
     std::uint64_t packetsBtoA = 0;
     // TCP payload bytes sent from endpoint A to endpoint B
     std::uint64_t payloadBytesAtoB = 0;
     // TCP payload bytes sent from endpoint B to endpoint A
     std::uint64_t payloadBytesBtoA = 0;
+
+    //* Lifecycle State Fields
+    // Records whether a SYN without ACK was observed from A-to-B
+    bool synAtoBSeen = false;
+    // Records whether a SYN without ACK was observed from B-to-A
+    bool synBtoASeen = false;
+    // Records whether a SYN-ACK was observed from A-to-B
+    bool synAckAtoBSeen = false;
+    // Records whether a SYN-ACK was observed from B-to-A
+    bool synAckBtoASeen = false;
+    // Records whether the final ACK of a handshake was observed from A-to-B
+    bool handshakeAckAtoBSeen = false;
+    // Records whether the final ACK of a handshake was observed from B-to-A
+    bool handshakeAckBtoASeen = false;
+    // Records whether endpoint A sent a FIN
+    bool finAtoBSeen = false;
+    // Records whether endpoint B sent a FIN
+    bool finBtoASeen = false;
+    // Records whether either endpoint sent an RST
+    bool rstSeen = false;
 };
 
 

@@ -86,6 +86,23 @@ int main(int argc, char* argv[]) {
                 ++flow.packetsAtoB;
                 // Add this packet's TCP payload bytes to the total sent from A-to-B
                 flow.payloadBytesAtoB += packetInfo.tcpPayloadLength;
+
+                // Record an initial SYN sent from A-to-B
+                if(packetInfo.tcpSyn && !packetInfo.tcpAck) {
+                    flow.synAtoBSeen = true;
+                }
+                // Record a SYN-ACK sent from A-to-B
+                if(packetInfo.tcpSyn && packetInfo.tcpAck) {
+                    flow.synAckAtoBSeen = true;
+                }
+                // Record the final handshake ACK when A initiated the connection and B replied with SYN-ACK
+                if(packetInfo.tcpAck && !packetInfo.tcpSyn && flow.synAtoBSeen && flow.synAckBtoASeen) {
+                    flow.handshakeAckAtoBSeen = true;
+                }
+                // Record a FIN sent from A-to-B
+                if(packetInfo.tcpFin) {
+                    flow.finAtoBSeen = true;
+                }
             }
             // If packets source matches endpoint B, packet travelled from B-to-A
             else if(sourceEndpoint == flowKey.endpointB) {
@@ -93,10 +110,31 @@ int main(int argc, char* argv[]) {
                 ++flow.packetsBtoA;
                 // Add this packet's TCP payload bytes to the total sent from B-to-A
                 flow.payloadBytesBtoA += packetInfo.tcpPayloadLength;
+
+                // Record an initial SYN sent from B-to-A
+                if(packetInfo.tcpSyn && !packetInfo.tcpAck) {
+                    flow.synBtoASeen = true;
+                }
+                // Record a SYN-ACK sent from B-to-A
+                if(packetInfo.tcpSyn && packetInfo.tcpAck) {
+                    flow.synAckBtoASeen = true;
+                }
+                // Record the final handshake ACK when B initiated the connection and A replied with SYN-ACK
+                if(packetInfo.tcpAck && !packetInfo.tcpSyn && flow.synBtoASeen && flow.synAckAtoBSeen) {
+                    flow.handshakeAckBtoASeen = true;
+                }
+                // Record a FIN sent from B-to-A
+                if(packetInfo.tcpFin) {
+                    flow.finBtoASeen = true;
+                }                
             }
             // Source should always match either A or B
             else {
                 std::cerr << "TCP packet source does not match either flow endpoint\n";
+            }
+            // Record whether either endpoint sent an RST
+            if(packetInfo.tcpRst) {
+                flow.rstSeen = true;
             }
         }
         // Count UDP packets
@@ -154,6 +192,18 @@ int main(int argc, char* argv[]) {
         std::cout << "\n  B-to-A packets: " << flow.packetsBtoA
                 << "\n  B-to-A payload bytes: " << flow.payloadBytesBtoA << "\n\n";
         
+        // Determine whether a complete handshake initiated by endpoint A was observed
+        bool handshakeFromAComplete = flow.synAtoBSeen && flow.synAckBtoASeen && flow.handshakeAckAtoBSeen;
+        // Determine whether a complete handshake initiated by endpoint B was observed
+        bool handshakeFromBComplete = flow.synBtoASeen && flow.synAckAtoBSeen && flow.handshakeAckBtoASeen;
+        // Print whether either valid 3-way handshake was observed
+        std::cout << "\n  Handshake complete: " << ((handshakeFromAComplete || handshakeFromBComplete) ? "yes" : "no");
+        // Print whether endpoint A sent a FIN
+        std::cout << "\n  FIN from A: " << (flow.finAtoBSeen ? "yes" : "no");
+        // Print whether endpoint B sent a FIN
+        std::cout << "\n  FIN from B: " << (flow.finBtoASeen ? "yes" : "no");
+        // Print whether either endpoint reset the connection
+        std::cout << "\n  RST observed: " << (flow.rstSeen ? "yes" : "no") << "\n\n";
     }
 }
 
