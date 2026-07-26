@@ -60,8 +60,13 @@ struct TcpFlowkey {
 };
 
 
-// Stores packet and byte totals collected for one TCP connection
+/**
+ * TcpFlow
+ * Stores stats and lifecycle info for one TCP connection
+ */
 struct TcpFlow {
+
+    //* Packet and Payload Totals
     // Total packets in both directions
     std::uint64_t packetCount = 0;
     // Total TCP payload bytes in both directions
@@ -94,6 +99,14 @@ struct TcpFlow {
     bool finBtoASeen = false;
     // Records whether either endpoint sent an RST
     bool rstSeen = false;
+
+    //* TCP Flow Timing
+    // Records whether timing info has been initialized for this flow
+    bool timestampsInitialized = false;
+    // Capture time of first packet for this flow (sec)
+    double firstTimestampSeconds = 0.0;
+    // Capture time of most recent packet for this flow (sec)
+    double lastTimestampSeconds = 0.0;
 };
 
 

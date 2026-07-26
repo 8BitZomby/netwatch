@@ -73,6 +73,19 @@ int main(int argc, char* argv[]) {
             TcpFlowkey flowKey = makeTcpFlowkey(packetInfo);
             // Find the matching flow, or create a new flow if it does not exist
             TcpFlow& flow = tcpFlows[flowKey];
+
+            // Convert the current packet's capture timestamp to seconds
+            double currentTimestampSeconds =                                // tv_sec stores whole seconds
+                    static_cast<double>(header->ts.tv_sec) +                // tv_usec stores remaining microseconds 
+                    static_cast<double>(header->ts.tv_usec) / 1000000.0;    // Div by 1M converts to fractional seconds    
+            // If this is the first packet, initialize timestamp
+            if(!flow.timestampsInitialized) {
+                flow.firstTimestampSeconds = currentTimestampSeconds;
+                flow.timestampsInitialized = true;
+            }
+            // Update the most recent capture time when another packet enters flow
+            flow.lastTimestampSeconds = currentTimestampSeconds;
+
             // Increase the number of packets assigned to this TCP connection
             ++flow.packetCount;
             // Add this packet's TCP payload size to the connection's payload total
@@ -203,7 +216,32 @@ int main(int argc, char* argv[]) {
         // Print whether endpoint B sent a FIN
         std::cout << "\n  FIN from B: " << (flow.finBtoASeen ? "yes" : "no");
         // Print whether either endpoint reset the connection
-        std::cout << "\n  RST observed: " << (flow.rstSeen ? "yes" : "no") << "\n\n";
+        std::cout << "\n  RST observed: " << (flow.rstSeen ? "yes" : "no");
+        // Calculate the elapsed time between the first and last packets in the flow
+        double flowDurationSeconds = flow.lastTimestampSeconds - flow.firstTimestampSeconds;
+        // Print duration of flow in seconds
+        std::cout << "\n  Duration: " << flowDurationSeconds << " seconds";
+        
+        // Calculate rates when the flow has a meaningful duration
+        // (very short flows can cause extremely high rates when very few packets actually sent)
+        if(flowDurationSeconds > 0.01) {
+            // Calculate the average number of TCP packets / second
+            double packetsPerSecond = static_cast<double>(flow.packetCount) / flowDurationSeconds;
+            // Calculate the avg number of TCP payload bytes / second
+            double payloadBytesPerSecond = static_cast<double>(flow.payloadByteCount) / flowDurationSeconds;
+            // Print the average packet rate for the flow
+            std::cout << "\n  Avg packet rate: " << packetsPerSecond << " packets/second";
+            // Print the avg TCP payload throughput for the flow
+            std::cout << "\n  Avg payload throughput: " << payloadBytesPerSecond << " bytes/second";
+        }
+        // If flow has a very short duration (< 0.01), print insufficient data
+        else {
+            // A very short duration flow does not have a meaningful rate
+            std::cout << "\n  Avg packet rate: insufficient data"
+                    << "\n  Avg payload throughput: insufficient data";
+        }
+        // Print black lines after flow summary
+        std::cout << "\n\n";
     }
 }
 
