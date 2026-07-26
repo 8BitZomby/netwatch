@@ -11,6 +11,9 @@
 
 void printPacketInfo(const PacketInfo& PacketInfo);
 
+// Returns a human-readable description for an ICMP code
+const char* getIcmpCodeDescription(std::uint8_t type, std::uint8_t code);
+
 
 int main(int argc, char* argv[]) {
     if(argc != 2) {
@@ -122,6 +125,52 @@ int main(int argc, char* argv[]) {
 
 
 /**
+ * getIcmpCodeDescription()
+ * Returns a human-readable description for an ICMP code
+ */
+const char* getIcmpCodeDescription(std::uint8_t type, std::uint8_t code) {
+    //  Echo Request & Echo Reply use code 0
+    if(type == 0 || type == 8) {
+        return code == 0 ? "No code" : "Unknown";
+    }
+    // Destination Unreachable codes describe why delivery failed
+    if(type == 3) {
+        switch(code) {
+            case 0: return "Network unreachable";
+            case 1: return "Host unreachable";
+            case 2: return "Protocol unreachable";
+            case 3: return "Port unreachable";
+            case 4: return "Fragmentation required";
+            case 5: return "Source route failed";
+            case 9: return "Netowrk administratively prohibited";
+            case 10: return "Host administratively prohibited";
+            case 13: return "Communication administratively prohibited";
+            default: return "Unknown";
+        }
+    }
+    // Redirect codes identify the preferred route type
+    if(type == 5) {
+        switch(code) {
+            case 0: return "Redirect for network";
+            case 1: return "Redirect for host";
+            case 2: return "Redirect for service and network";
+            case 3: return "Redirect for service and host";
+            default: return "Unknown";
+        }
+    }
+    // Time Exceeded codes distinguish routing and reassembly failures
+    if(type == 11) {
+        switch(code) {
+            case 0: return "TTL expired in transit";
+            case 1: return "Fragment reassembly time exceeded";
+            default: return "Unknown";
+        }
+    }
+    return "Unknown";
+}
+
+
+/**
  *
  */
 void printPacketInfo(const PacketInfo& packetInfo) {
@@ -181,6 +230,10 @@ void printPacketInfo(const PacketInfo& packetInfo) {
         std::cout << "Transport protocol: ICMP\n"
                 << "ICMP type: " << static_cast<int>(packetInfo.icmpType) << "\n"
                 << "ICMP code: " << static_cast<int>(packetInfo.icmpCode) << "\n";
+        // Print the meaning of the code for this ICMP message type
+        std::cout << "ICMP code description: "
+                << getIcmpCodeDescription(packetInfo.icmpType, packetInfo.icmpCode) << "\n";
+        // Print the message type
         std::cout << "ICMP message type: ";
         switch(packetInfo.icmpType) {
             case 0: std::cout << "Echo Reply\n"; break;
@@ -190,9 +243,33 @@ void printPacketInfo(const PacketInfo& packetInfo) {
             case 11: std::cout << "Time Exceeded\n"; break;
             default: std::cout << "Unknown\n"; break;
         }
+        // Echo messages use the final four header bytes for request/reply matching
+        if(packetInfo.icmpType == 0 || packetInfo.icmpType == 8) {
+            std::cout << "ICMP identifier: " << packetInfo.icmpIdentifier << "\n"
+                    << "ICMP sequence number: " << packetInfo.icmpSequenceNumber << "\n";
+        }
+
+        // Print the total ICMP message llength and payload location
+        std::cout << "ICMP length: " << packetInfo.icmpLength << " bytes\n"
+                << "ICMP payload starts at byte: " << packetInfo.icmpPayloadOffset << "\n"
+                << "ICMP payload length: " << packetInfo.icmpPayloadLength << " bytes\n";
+
+        // Print checksum
         std::cout << "ICMP checksum: 0x"
                     << std::hex << std::setw(4) << std::setfill('0')
-                    << packetInfo.icmpChecksum << std::dec << "\n\n";
+                    << packetInfo.icmpChecksum << std::dec << "\n";
+        // Print whether the ICMP checksum was checked whether it is valid
+        if(!packetInfo.icmpChecksumChecked) {
+            std::cout << "ICMP checksum status: not checked\n";
+        }
+        else if(packetInfo.icmpChecksumValid) {
+            std::cout << "ICMP checksum status: valid\n";
+        }
+        else {
+            std::cout << "ICMP checksum status: invalid\n";
+        }
+        // Separate this packet's ICMP output from the next section
+        std::cout << "\n";
     }
 
     // Print TCP information

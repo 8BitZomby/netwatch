@@ -87,6 +87,17 @@ bool validateTCPChecksum(const u_char* data, std::size_t transportOffset, const 
 }
 
 /**
+ * validateICMPChecksum
+ */
+bool validateICMPChecksum(const u_char* data, std::size_t transportOffset, std::size_t icmpLength) {
+    std::uint32_t sum = 0;
+    // ICMP checksum covers its complate header and payload
+    sum = addChecksumBytes(sum, &data[transportOffset], icmpLength);
+    // A valid one's complement checksum produces all 1 bites
+    return sum == 0xFFFF;
+}
+
+/**
  * Read two consecutive bytes in big-endian order and combine them into a 
  * single 16-bit unsigned integer. The byte at offset is the high-order 
  * byte and offset + 1 is the low-order byte.
@@ -148,6 +159,41 @@ void parseICMP(const u_char* data, std::size_t capturedLength, std::size_t trans
     packetInfo.icmpCode = data[transportOffset + 1];
     // Read the ICMP checksum from bytes 2-3
     packetInfo.icmpChecksum = readUint16BigEndian(data, transportOffset + 2);
+
+    // Echo Request and Echo Reply use bytes 4-5 as an identifier and bytes 6-7 as a sequence number
+    if(packetInfo.icmpType == 0 || packetInfo.icmpType == 8) {
+        packetInfo.icmpIdentifier = readUint16BigEndian(data, transportOffset + 4);
+        packetInfo.icmpSequenceNumber = readUint16BigEndian(data, transportOffset + 6);
+    }
+
+    // Ensure the IPv4 total length can contain its own header
+    if(packetInfo.ipTotalLength < packetInfo.ipHeaderLength) {
+        std::cerr << "Invalid IPv4 total length\n";
+        return;
+    }
+    // ICMP occupies the complete IPv4 payload
+    packetInfo.icmpLength = packetInfo.ipTotalLength - packetInfo.ipHeaderLength;
+
+    // Ensure ICMP message contains the complete fixed 8-byte header
+    if(packetInfo.icmpLength < 8) {
+        std::cerr << "Invalid ICMP length\n";
+        return;
+    }
+
+    // The fixed ICMP header occupies the first 8 bytes
+    packetInfo.icmpPayloadOffset = transportOffset + 8;
+
+    // Calculate the number of bytes following the fixed ICMP header
+    packetInfo.icmpPayloadLength = packetInfo.icmpLength - 8;
+
+    // Ensure the complete ICMP message is present in the capture
+    if(capturedLength < transportOffset + packetInfo.icmpLength) {
+        std::cerr << "Truncated ICMP message\n";
+        return;
+    }
+    // Validate the checksum across the ICMP header and payload
+    packetInfo.icmpChecksumValid = validateICMPChecksum(data, transportOffset, packetInfo.icmpLength);
+    packetInfo.icmpChecksumChecked = true;
 }
 
 /**

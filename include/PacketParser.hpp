@@ -216,6 +216,15 @@ struct PacketInfo {
     std::uint8_t icmpType = 0;
     std::uint8_t icmpCode = 0;
     std::uint16_t icmpChecksum = 0;
+    bool icmpChecksumChecked = false;
+    bool icmpChecksumValid = false;
+    // ICMP derived lengths
+    std::size_t icmpLength = 0;
+    std::size_t icmpPayloadOffset = 0;
+    std::size_t icmpPayloadLength = 0;
+    // ICMP Echo fields
+    std::uint16_t icmpIdentifier = 0;
+    std::uint16_t icmpSequenceNumber = 0;
 
     // TFTP
     bool isTFTP = false;
