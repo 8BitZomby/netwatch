@@ -11,6 +11,7 @@ void printTcpEndpoint(const TcpEndpoint& endpoint);
 void printPacketInfo(const PacketInfo& PacketInfo);
 std::int32_t tcpSequenceDifference(std::uint32_t observedSequence, std::uint32_t expectedSequence);
 void advanceExpectedSequence(std::uint32_t& nextExpectedSequence, std::vector<TcpSequenceRange>& pendingRanges);
+void storePendingSequenceRange(std::vector<TcpSequenceRange>& pendingRanges, std::uint32_t startSequence, std::uint32_t endSequence);
 
 int main(int argc, char* argv[]) {
     if(argc != 2) {
@@ -158,7 +159,8 @@ int main(int argc, char* argv[]) {
                             if(flow.pendingSequenceRangesAtoB.empty()) {
                                 ++flow.possibleOutOfOrderCount;
                             }
-                            flow.pendingSequenceRangesAtoB.push_back({packetInfo.tcpSequenceNumber, segmentEndSequence});
+                            // Store the range while merging any overlap with existing pending ranges
+                            storePendingSequenceRange(flow.pendingSequenceRangesAtoB, packetInfo.tcpSequenceNumber, segmentEndSequence);
                         }
                     }
                 }
@@ -229,7 +231,8 @@ int main(int argc, char* argv[]) {
                             if(flow.pendingSequenceRangesBtoA.empty()) {
                                 ++flow.possibleOutOfOrderCount;
                             }
-                            flow.pendingSequenceRangesBtoA.push_back({packetInfo.tcpSequenceNumber, segmentEndSequence});
+                            // Store the range while merging any overlap with existing pending ranges
+                            storePendingSequenceRange(flow.pendingSequenceRangesBtoA, packetInfo.tcpSequenceNumber, segmentEndSequence);
                         }
                     }
                 }
@@ -553,4 +556,45 @@ void advanceExpectedSequence(std::uint32_t& nextExpectedSequence, std::vector<Tc
             }
         }
     } while(sequenceAdvanced);
+}
+
+
+/**
+ * storePendingSequenceRanges()
+ * Stores an ahead-of-expected range and merges overlapping or adjacent ranges
+ */
+void storePendingSequenceRange(std::vector<TcpSequenceRange>& pendingRanges, std::uint32_t startSequence, std::uint32_t endSequence) {
+    TcpSequenceRange mergedRange{startSequence, endSequence};
+
+    for(auto rangeIterator = pendingRanges.begin(); rangeIterator != pendingRanges.end(); ) {
+        // Check whether the existing range overlaps or touches the new range
+        bool rangesConnect = 
+            tcpSequenceDifference((*rangeIterator).startSequence, mergedRange.endSequence) <= 0 &&
+            tcpSequenceDifference((*rangeIterator).endSequence, mergedRange.startSequence) >= 0;
+        if(rangesConnect) {
+            // Check whether the existing range begins earlier (nonzero int is converted to true for tcpSequenceDifference return value)
+            bool existingRangeStartsEarlier = tcpSequenceDifference((*rangeIterator).startSequence, mergedRange.startSequence) < 0;
+            
+            // Check whether the existing range ends later (nonzero int is converted to true for tcpSequenceDifference return value)
+            bool existingRangeEndsLater = tcpSequenceDifference((*rangeIterator).endSequence, mergedRange.endSequence) > 0;
+
+            // Expand the beginning when the existing range starts earlier
+            if(existingRangeStartsEarlier) {
+                mergedRange.startSequence = (*rangeIterator).startSequence; 
+            }
+
+            // Expand the end when the existing range finishes later
+            if(existingRangeEndsLater) {
+                mergedRange.endSequence = (*rangeIterator).endSequence;
+            }
+
+            // Remove the old range because it is now included in mergedRange
+            rangeIterator = pendingRanges.erase(rangeIterator);
+        }
+        else {
+            ++rangeIterator;
+        }
+    }
+    // Store the combined range after all overlaps have been removed
+    pendingRanges.push_back(mergedRange);
 }
