@@ -212,6 +212,11 @@ struct PacketInfo {
     std::size_t udpPayloadOffset = 0;
     std::uint16_t udpPayloadLength = 0;
     
+    // ICMP header fields
+    std::uint8_t icmpType = 0;
+    std::uint8_t icmpCode = 0;
+    std::uint16_t icmpChecksum = 0;
+
     // TFTP
     bool isTFTP = false;
     std::uint16_t tftpOpcode = 0;

@@ -92,7 +92,7 @@ int main(int argc, char* argv[]) {
 
         // For first packet, print the packet information
         //if(packetCount == 1) {
-        if(packetInfo.tcpOptionsLength > 0) {
+        if(packetInfo.tcpOptionsLength > 0 || packetInfo.ipProtocol == 1) {
             printPacketInfo(packetInfo);
         }
         // Print header information for the first 5 packets
@@ -121,6 +121,9 @@ int main(int argc, char* argv[]) {
 }
 
 
+/**
+ *
+ */
 void printPacketInfo(const PacketInfo& packetInfo) {
     // Print IPv4 information
     if(packetInfo.etherType == 0x0800) {
@@ -171,6 +174,25 @@ void printPacketInfo(const PacketInfo& packetInfo) {
                 << "UDP payload starts at byte: " << packetInfo.udpPayloadOffset << "\n"
                 << "UDP length: " << packetInfo.udpLength << " bytes\n"
                 << "UDP payload length: " << packetInfo.udpPayloadLength << " bytes\n\n";
+    }
+
+    // Print ICMP information
+    if(packetInfo.ipProtocol == 1) {
+        std::cout << "Transport protocol: ICMP\n"
+                << "ICMP type: " << static_cast<int>(packetInfo.icmpType) << "\n"
+                << "ICMP code: " << static_cast<int>(packetInfo.icmpCode) << "\n";
+        std::cout << "ICMP message type: ";
+        switch(packetInfo.icmpType) {
+            case 0: std::cout << "Echo Reply\n"; break;
+            case 3: std::cout << "Destination Unreachable\n"; break;
+            case 5: std::cout << "Redirect\n"; break;
+            case 8: std::cout << "Echo Request\n"; break;
+            case 11: std::cout << "Time Exceeded\n"; break;
+            default: std::cout << "Unknown\n"; break;
+        }
+        std::cout << "ICMP checksum: 0x"
+                    << std::hex << std::setw(4) << std::setfill('0')
+                    << packetInfo.icmpChecksum << std::dec << "\n\n";
     }
 
     // Print TCP information

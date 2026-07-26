@@ -29,7 +29,6 @@ TcpFlowkey makeTcpFlowkey(const PacketInfo& packetInfo) {
     return {source, destination};       // Returns TcpFlowkey
 };
 
-
 /**
  * addChecsumWord - parse TCP Helper
  * Add a 16-bit value to a one's complement checksum and wrap
@@ -137,12 +136,18 @@ bool isNullTerminatedWithinPacket(const u_char* data, std::size_t capturedLength
 /**
  * parseICMP
  */
-void parseICMP(const u_char* data, std::size_t capturedLength, std::size_t transportOffset) {
+void parseICMP(const u_char* data, std::size_t capturedLength, std::size_t transportOffset, PacketInfo& packetInfo) {
     // Ensure the captured packet contains at least the minimum 8-byte ICMP header.
     if(capturedLength < transportOffset + 8) {
         std::cerr << "Truncated ICMP header\n";
         return;
     }
+    // Read the ICMP message type from byte 0 of the ICMP header
+    packetInfo.icmpType = data[transportOffset];
+    // Read the type specific ICMP code from byte 1
+    packetInfo.icmpCode = data[transportOffset + 1];
+    // Read the ICMP checksum from bytes 2-3
+    packetInfo.icmpChecksum = readUint16BigEndian(data, transportOffset + 2);
 }
 
 /**
@@ -534,7 +539,7 @@ void parseIPv4(const u_char* data, std::size_t capturedLength, std::size_t ipOff
     }
     // ICMP = 1
     else if(packetInfo.ipProtocol == 1) {
-        parseICMP(data, capturedLength, transportOffset);
+        parseICMP(data, capturedLength, transportOffset, packetInfo);
     }
     else {
         std::cout << "Transport protocol: Unknown\n"
