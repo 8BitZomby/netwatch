@@ -19,6 +19,7 @@ find_library(PCAP_LIBRARY
 add_executable(netwatch
     src/main.cpp
     src/PacketParser.cpp
+    src/TcpFlowAnalyzer.cpp
 )
 
 target_include_directories(netwatch PRIVATE
