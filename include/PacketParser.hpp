@@ -59,6 +59,17 @@ struct TcpFlowkey {
     }
 };
 
+/**
+ * TcpSequenceRange()
+ * Observed TCP Sequence Range
+ */
+struct TcpSequenceRange {
+    // Sequence number of the 1st byte or control position covered by the segment
+    std::uint32_t startSequence = 0;
+    // 1st sequence number after the bytes or control positions covered by the segment
+    std::uint32_t endSequence = 0;
+};
+
 
 /**
  * TcpFlow
@@ -107,6 +118,24 @@ struct TcpFlow {
     double firstTimestampSeconds = 0.0;
     // Capture time of most recent packet for this flow (sec)
     double lastTimestampSeconds = 0.0;
+
+    //* TCP Sequence Tracking - Detecting retransmissions and out-of-order events
+    // Records whether the expected sequence number has been initialized for A-to-B traffic
+    bool sequenceAtoBInitialized = false;
+    // Records the next TCP sequence number expected from endpoint A (defined by TCP as 32-bit field)
+    std::uint32_t nextExpectedSequenceAtoB = 0;
+    // Records pending A-to-B sequence ranges until missing earlier data arrives
+    std::vector<TcpSequenceRange> pendingSequenceRangesAtoB;
+    // Records whether the expected sequence number has been initialized for B-to-A traffic
+    bool sequenceBtoAInitialized = false;
+    // Records pending B-to-A sequence ranges until missing earlier data arrives
+    std::vector<TcpSequenceRange> pendingSequenceRangesBtoA;
+    // Records the next TCP sequence number expected from endpoint B (defined by TCP as 32-bit field)
+    std::uint32_t nextExpectedSequenceBtoA = 0;
+    // Counts segments that begin before the expected sequence number and may therefore be retransmissions or overlapping segments    
+    std::uint64_t possibleRetransmissionCount = 0;
+    // Counts separate events where a segment first appears beyond the expected sequence
+    std::uint64_t possibleOutOfOrderCount = 0;
 };
 
 

@@ -9,6 +9,8 @@
 
 void printTcpEndpoint(const TcpEndpoint& endpoint);
 void printPacketInfo(const PacketInfo& PacketInfo);
+std::int32_t tcpSequenceDifference(std::uint32_t observedSequence, std::uint32_t expectedSequence);
+void advanceExpectedSequence(std::uint32_t& nextExpectedSequence, std::vector<TcpSequenceRange>& pendingRanges);
 
 int main(int argc, char* argv[]) {
     if(argc != 2) {
@@ -93,12 +95,73 @@ int main(int argc, char* argv[]) {
 
             // Create an endpoint representing the source of the current TCP packet
             TcpEndpoint sourceEndpoint{packetInfo.sourceIp, packetInfo.sourcePort};
+
+            // Start with the number of TCP payload butes carried by this segment
+            std::uint32_t sequenceLength = packetInfo.tcpPayloadLength;
+            // A SYN consumes one position in the TCP sequence-number space
+            if(packetInfo.tcpSyn) {
+                ++sequenceLength;
+            }
+            // A FIN also consumes one position in the TCP sequence-number space
+            if(packetInfo.tcpFin) {
+                ++sequenceLength;
+            }
+            // Add the number of sequence-space positions consumed by this segment to its
+            // starting sequence number to determine the next sequence number after it
+            std::uint32_t segmentEndSequence = packetInfo.tcpSequenceNumber + sequenceLength;
+
             // If the packet's source matches endpoint A, packet travelled A-to-B
             if(sourceEndpoint == flowKey.endpointA) {
                 // Increase the packet total for traffic from A to B
                 ++flow.packetsAtoB;
                 // Add this packet's TCP payload bytes to the total sent from A-to-B
                 flow.payloadBytesAtoB += packetInfo.tcpPayloadLength;
+
+                // Only track segments that consume TCP sequence-number space
+                if(sequenceLength > 0) {
+                    // If this is the 1st sequence-consuming segment from A, 
+                    // use the sequence num after this segment as next expected value
+                    if(!flow.sequenceAtoBInitialized) {
+                        flow.nextExpectedSequenceAtoB = segmentEndSequence;
+                        flow.sequenceAtoBInitialized = true;
+                    }
+                    else {
+                        // Compare this segment's starting sequence number with the
+                        // sequence number currently expected for A-to-B traffic
+                        std::int32_t sequenceDifference = tcpSequenceDifference(packetInfo.tcpSequenceNumber, flow.nextExpectedSequenceAtoB);
+                        // Compare the segment's ending position with the expected sequence
+                        std::int32_t endSequenceDifference = tcpSequenceDifference(segmentEndSequence, flow.nextExpectedSequenceAtoB);
+                        
+                        // A difference of 0 means this segment begins exactly where
+                        // the previously observed A-to-B data ended
+                        if(sequenceDifference == 0) {
+                            // Advance past this in-order segment
+                            flow.nextExpectedSequenceAtoB = segmentEndSequence;
+                            // Use any stored later ranges that are now continuous with this data
+                            advanceExpectedSequence(flow.nextExpectedSequenceAtoB, flow.pendingSequenceRangesAtoB);
+                        }
+                        // A -ve difference means the segment begins in sequence space that
+                        // has already been observed, indicating it MAY be a retransmission
+                        else if(sequenceDifference < 0) {
+                            // Advance if this overlapping segment contains sequence data not seen yet
+                            if(endSequenceDifference > 0) {
+                                flow.nextExpectedSequenceAtoB = segmentEndSequence;
+                                // Use any stored later ranges that are now continuous with this data
+                                advanceExpectedSequence(flow.nextExpectedSequenceAtoB, flow.pendingSequenceRangesAtoB);
+                            }
+                            ++flow.possibleRetransmissionCount;
+                        }
+                        // A positive difference means the segment begins beyond the expected
+                        // position, indicating earlier data MAY be missing or arrive later
+                        else {
+                            // Count a new out-of-order event only when this gap first appears
+                            if(flow.pendingSequenceRangesAtoB.empty()) {
+                                ++flow.possibleOutOfOrderCount;
+                            }
+                            flow.pendingSequenceRangesAtoB.push_back({packetInfo.tcpSequenceNumber, segmentEndSequence});
+                        }
+                    }
+                }
 
                 // Record an initial SYN sent from A-to-B
                 if(packetInfo.tcpSyn && !packetInfo.tcpAck) {
@@ -116,6 +179,7 @@ int main(int argc, char* argv[]) {
                 if(packetInfo.tcpFin) {
                     flow.finAtoBSeen = true;
                 }
+                
             }
             // If packets source matches endpoint B, packet travelled from B-to-A
             else if(sourceEndpoint == flowKey.endpointB) {
@@ -123,6 +187,52 @@ int main(int argc, char* argv[]) {
                 ++flow.packetsBtoA;
                 // Add this packet's TCP payload bytes to the total sent from B-to-A
                 flow.payloadBytesBtoA += packetInfo.tcpPayloadLength;
+
+                // Only track segments that consume TCP sequence-number space
+                if(sequenceLength > 0) {
+                    // If this is the 1st sequence-consuming segment from B, 
+                    // use the sequence num after this segment as next expected val
+                    if(!flow.sequenceBtoAInitialized) {
+                        flow.nextExpectedSequenceBtoA = segmentEndSequence;
+                        flow.sequenceBtoAInitialized = true;
+                    }
+                    else {
+                        // Compare this segment's starting sequence number with the
+                        // sequence number currently expected for B-to-A traffic
+                        std::int32_t sequenceDifference = tcpSequenceDifference(packetInfo.tcpSequenceNumber, flow.nextExpectedSequenceBtoA);
+                        // Compare the segment's ending position with the expected sequence
+                        std::int32_t endSequenceDifference = tcpSequenceDifference(segmentEndSequence, flow.nextExpectedSequenceBtoA);
+
+                        // A difference of 0 means this segment begins exactly where
+                        // the previously observed B-to-A data ended
+                        if(sequenceDifference == 0) {
+                            // Advance past this in-order segment
+                            flow.nextExpectedSequenceBtoA = segmentEndSequence;
+                            // Use any stored later ranges that are now continuous with this data
+                            advanceExpectedSequence(flow.nextExpectedSequenceBtoA,  flow.pendingSequenceRangesBtoA);
+                        }
+                        // A -ve difference means the segment begins in sequence space that
+                        // has already been observed, indicating it MAY be a retransmission
+                        else if(sequenceDifference < 0) {
+                            // Advance if this overlapping segment contains sequence data not seen yet
+                            if(endSequenceDifference > 0) {
+                                flow.nextExpectedSequenceBtoA = segmentEndSequence;
+                                // Use any stored later ranges that are now continuous with this data
+                                advanceExpectedSequence(flow.nextExpectedSequenceBtoA, flow.pendingSequenceRangesBtoA);
+                            }
+                            ++flow.possibleRetransmissionCount;
+                        }
+                        // A positive difference means the segment begins beyond the expected
+                        // position, indicating earlier data MAY be missing or arrive later
+                        else {
+                            // Count a new out-of-order event only when this gap first appears
+                            if(flow.pendingSequenceRangesBtoA.empty()) {
+                                ++flow.possibleOutOfOrderCount;
+                            }
+                            flow.pendingSequenceRangesBtoA.push_back({packetInfo.tcpSequenceNumber, segmentEndSequence});
+                        }
+                    }
+                }
 
                 // Record an initial SYN sent from B-to-A
                 if(packetInfo.tcpSyn && !packetInfo.tcpAck) {
@@ -217,6 +327,10 @@ int main(int argc, char* argv[]) {
         std::cout << "\n  FIN from B: " << (flow.finBtoASeen ? "yes" : "no");
         // Print whether either endpoint reset the connection
         std::cout << "\n  RST observed: " << (flow.rstSeen ? "yes" : "no");
+        // Print number of possible retransmissions
+        std::cout << "\n  Possible retransmissions: " << flow.possibleRetransmissionCount;
+        // Print number of separate gaps first detected in the TCP sequence stream
+        std::cout << "\n  Possible out-of-order events: " << flow.possibleOutOfOrderCount;
         // Calculate the elapsed time between the first and last packets in the flow
         double flowDurationSeconds = flow.lastTimestampSeconds - flow.firstTimestampSeconds;
         // Print duration of flow in seconds
@@ -395,4 +509,48 @@ void printPacketInfo(const PacketInfo& packetInfo) {
                     << "TFTP mode: " << packetInfo.tftpMode << "\n\n";
         }
     }
+}
+
+/**
+ * tcpSequenceDifference()
+ * Returns the signed distance from the expected sequence number to the observed
+ * sequence number, while preserving TCP's 32-bit wraparound behaviour
+ */
+std::int32_t tcpSequenceDifference(std::uint32_t observedSequence, std::uint32_t expectedSequence) {
+    return static_cast<std::int32_t>(observedSequence - expectedSequence);
+}
+
+/**
+ * advanceExpectedSequences()
+ * Updates the next expected sequence number using stored out-or-order ranges
+ * after missing data arrives, and removes ranges that are no longer needed
+ * Ex:  First segment:  positions 0-4
+ *      Second segment: positions 3-6 (contains resent data in 3 & 4)
+ *      Combined:       positions 0-6
+ */
+void advanceExpectedSequence(std::uint32_t& nextExpectedSequence, std::vector<TcpSequenceRange>& pendingRanges) {
+    bool sequenceAdvanced;
+    // Scan at least once, then repeat if a pending range extends the sequence
+    do {
+        sequenceAdvanced = false;
+        for(auto rangeIterator = pendingRanges.begin(); rangeIterator != pendingRanges.end(); ) {
+            std::int32_t startDifference = tcpSequenceDifference((*rangeIterator).startSequence, nextExpectedSequence);
+            std::int32_t endDifference = tcpSequenceDifference((*rangeIterator).endSequence, nextExpectedSequence);
+
+            // Use a pending range that overlaps the expected sequence and extends past it
+            if(startDifference <= 0 && endDifference > 0) {
+                nextExpectedSequence = (*rangeIterator).endSequence;
+                rangeIterator = pendingRanges.erase(rangeIterator);
+                sequenceAdvanced = true;
+                break;
+            }
+            // Remove a range already fully covered by received data
+            if(endDifference <= 0) {
+                rangeIterator = pendingRanges.erase(rangeIterator);
+            }
+            else {
+                ++rangeIterator;
+            }
+        }
+    } while(sequenceAdvanced);
 }
