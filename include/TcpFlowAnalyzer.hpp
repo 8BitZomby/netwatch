@@ -5,6 +5,7 @@
 
 #include <cstdint>
 #include <vector>
+#include <map>
 
 
 // Compares TCP sequence numbers while preserving 32-bit wraparound behaviour
@@ -15,5 +16,8 @@ void advanceExpectedSequence(std::uint32_t& nextExpectedSequence, std::vector<Tc
 
 // Stores a pending sequence range and merges overlapping or adjacent ranges
 void storePendingSequenceRange(std::vector<TcpSequenceRange>& pendingRanges, std::uint32_t startSequence, std::uint32_t endSequence);
+
+// Updates the matching TCP flow with one parsed packet and its capture time
+void updateTcpFlow(std::map<TcpFlowkey, TcpFlow>& tcpFlows, const PacketInfo& packetInfo, double timestampSeconds);
 
 #endif
