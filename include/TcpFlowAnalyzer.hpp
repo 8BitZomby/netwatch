@@ -20,4 +20,10 @@ void storePendingSequenceRange(std::vector<TcpSequenceRange>& pendingRanges, std
 // Updates the matching TCP flow with one parsed packet and its capture time
 void updateTcpFlow(std::map<TcpFlowkey, TcpFlow>& tcpFlows, const PacketInfo& packetInfo, double timestampSeconds);
 
+// Prints one TCP endpoint in IPv4-address-and-port format
+void printTcpEndpoint(const TcpEndpoint& endpoint);
+
+// Prints a summary for every tracked TCP flow
+void printTcpFlowSummaries(const std::map<TcpFlowkey, TcpFlow>& tcpFlows);
+
 #endif
