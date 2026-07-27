@@ -7,6 +7,7 @@
 #include <pcap/pcap.h>
 #include "PacketParser.hpp"
 #include "TcpFlowAnalyzer.hpp"
+#include "IcmpAnalyzer.hpp"         // ICMP Echo request/reply tracking
 
 
 void printPacketInfo(const PacketInfo& PacketInfo);
@@ -57,6 +58,9 @@ int main(int argc, char* argv[]) {
     // Stores all TCP connections identified in the capture
     std::map<TcpFlowkey, TcpFlow> tcpFlows;
 
+    // Stores ICMP Echo Requests and their matching Replies
+    IcmpEchoExchangeMap icmpEchoExchanges;
+
     // Process pcap one packet at a time
     // pcap_next_ex() returns (0: timeout, 1: successful read, -1: error, -2: EOF)
     while(pcap_next_ex(capture, &header, &data) == 1) {
@@ -84,15 +88,22 @@ int main(int argc, char* argv[]) {
             updateTcpFlow(tcpFlows, packetInfo, currentTimestampSeconds);
         }
         // Count UDP packets
-        if(packetInfo.ipProtocol == 17)
+        if(packetInfo.ipProtocol == 17) {
             ++udpPacketCount;
-        // Count ICMP packets
-        if(packetInfo.ipProtocol == 1)
+        }
+        // Count ICMP packets and update Echo request/reply tracking
+        if(packetInfo.ipProtocol == 1) {
             ++icmpPacketCount;
+            // Convert this packet's capture timestamp to seconds
+            double currentTimestampSeconds = static_cast<double>(header->ts.tv_sec) +
+                                static_cast<double>(header->ts.tv_usec) / 1000000.0;
+            // Record Echo Requests and match Echo Replies to them
+            updateIcmpEchoTracking(icmpEchoExchanges, packetInfo, currentTimestampSeconds);
+        }
         // Count identified TFTP initial-request packets
-        if(packetInfo.isTFTP)
+        if(packetInfo.isTFTP) {
             ++tftpPacketCount;
-
+        }
         // For first packet, print the packet information
         //if(packetCount == 1) {
         if(packetInfo.tcpOptionsLength > 0 || packetInfo.ipProtocol == 1) {
@@ -121,6 +132,8 @@ int main(int argc, char* argv[]) {
 
     // Print summaries for all tracked TCP flows
     printTcpFlowSummaries(tcpFlows);
+    // Print summaries for all tracked ICMP Echo exchanges
+    printIcmpEchoSummaries(icmpEchoExchanges);
 }
 
 
