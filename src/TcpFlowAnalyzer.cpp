@@ -289,6 +289,70 @@ void updateTcpFlow(std::map<TcpFlowkey, TcpFlow>& tcpFlows, const PacketInfo& pa
 
 
 /**
+ * calculateTcpFlowSummaries
+ */
+std::vector<TcpFlowSummary> calculateTcpFlowSummaries(const std::map<TcpFlowkey, TcpFlow>& tcpFlows) {
+    // Store one structured summary for each tracked TCP flow
+    std::vector<TcpFlowSummary> summaries;
+
+    // Reserve enough space in advance to avoid repeated vector reallocations
+    summaries.reserve(tcpFlows.size());
+
+    // Convert each tracked flow into presentation-independent summary data
+    for(const auto& [flowKey, flow] : tcpFlows) {
+        TcpFlowSummary summary;
+
+        // Preserve the normalized endpoint pair that identifies this flow
+        summary.flowKey = flowKey;
+
+        // Copy total packet and payload counts for both directions combined
+        summary.packetCount = flow.packetCount;
+        summary.payloadByteCount = flow.payloadByteCount;
+
+        // Copy packet and payload totals already accumulated by the analyzer
+        summary.packetsAtoB = flow.packetsAtoB;
+        summary.payloadBytesAtoB = flow.payloadBytesAtoB;
+        summary.packetsBtoA = flow.packetsBtoA;
+        summary.payloadBytesBtoA = flow.payloadBytesBtoA;
+
+        // A complete handshake can begin from either normalized endpoint
+        bool handshakeFromAComplete =
+                flow.synAtoBSeen &&
+                flow.synAckBtoASeen &&
+                flow.handshakeAckAtoBSeen;
+        bool handshakeFromBComplete =
+                flow.synBtoASeen &&
+                flow.synAckAtoBSeen &&
+                flow.handshakeAckBtoASeen;
+        summary.handshakeComplete = handshakeFromAComplete || handshakeFromBComplete;
+
+        // Copy observed connection-closing and reset state
+        summary.finAtoBSeen = flow.finAtoBSeen;
+        summary.finBtoASeen = flow.finBtoASeen;
+        summary.rstSeen = flow.rstSeen;
+
+        // Copy sequence-analysis results
+        summary.possibleRetransmissionCount = flow.possibleRetransmissionCount;
+        summary.possibleOutOfOrderCount = flow.possibleOutOfOrderCount;
+
+        // Calculate the elapsed capture time for this flow
+        summary.durationSeconds = flow.lastTimestampSeconds - flow.firstTimestampSeconds;
+
+        // Rates are calculated only when the observed duration is long
+        // enough to avoid misleadingly large values from short flows
+        if(summary.durationSeconds > 0.01) {
+            summary.rateStatisticsAvailable = true;
+            summary.packetsPerSecond = static_cast<double>(summary.packetCount) / summary.durationSeconds;
+            summary.payloadBytesPerSecond = static_cast<double>(summary.payloadByteCount) / summary.durationSeconds;
+        }
+        // Move the complete summary into the result collection
+        summaries.push_back(summary);
+    }
+    return summaries;
+}
+
+
+/**
  * printTcpEndpoint()
  * Prints one TCP endpoint in IPv4-address-and-port format
  */
@@ -307,64 +371,61 @@ void printTcpEndpoint(const TcpEndpoint& endpoint) {
  * printTcpFlowSummaries()
  */
 void printTcpFlowSummaries(const std::map<TcpFlowkey, TcpFlow>& tcpFlows) {
-    for(const auto& [flowKey, flow] : tcpFlows) {
+    // Calculate presentation-independent data before formatting output
+    std::vector<TcpFlowSummary> summaries = calculateTcpFlowSummaries(tcpFlows);
+
+    // Separate the capture totals from the TCP flow summaries
+    if(!summaries.empty()) {
         std::cout << "\n";
+    }
+
+    // Print each prepared TCP flow summary
+    for(const TcpFlowSummary& summary : summaries) {
         // Print the first normalized endpoint
-        printTcpEndpoint(flowKey.endpointA);
+        printTcpEndpoint(summary.flowKey.endpointA);
         // Separate the two endpoints with a bidirectional connection marker
         std::cout << " <-> ";
         // Print the second normalized endpoint
-        printTcpEndpoint(flowKey.endpointB);
+        printTcpEndpoint(summary.flowKey.endpointB);
+
         // Print the combined total from A-to-B and B-to-A
-        std::cout << "\n  Total Packets: " << flow.packetCount
-                <<"\n  Payload bytes: " << flow.payloadByteCount;
+        std::cout << "\n  Total packets: " << summary.packetCount
+                <<"\n  Payload bytes: " << summary.payloadByteCount;
         // Print the totals for traffic sent from endpoint A to endpoint B
-        std::cout << "\n  A-to-B packets: " << flow.packetsAtoB
-                << "\n  A-to-B payload bytes: " << flow.payloadBytesAtoB;
-        // Print the totals for traffic sent from endpoint B to eendpoint A
-        std::cout << "\n  B-to-A packets: " << flow.packetsBtoA
-                << "\n  B-to-A payload bytes: " << flow.payloadBytesBtoA << "\n\n";
+        std::cout << "\n  A-to-B packets: " << summary.packetsAtoB
+                << "\n  A-to-B payload bytes: " << summary.payloadBytesAtoB;
+        // Print the totals for traffic sent from endpoint B to endpoint A
+        std::cout << "\n  B-to-A packets: " << summary.packetsBtoA
+                << "\n  B-to-A payload bytes: " << summary.payloadBytesBtoA << "\n";
 
-        // Determine whether a complete handshake initiated by endpoint A was observed
-        bool handshakeFromAComplete = flow.synAtoBSeen && flow.synAckBtoASeen && flow.handshakeAckAtoBSeen;
-        // Determine whether a complete handshake initiated by endpoint B was observed
-        bool handshakeFromBComplete = flow.synBtoASeen && flow.synAckAtoBSeen && flow.handshakeAckBtoASeen;
         // Print whether either valid 3-way handshake was observed
-        std::cout << "\n  Handshake complete: " << ((handshakeFromAComplete || handshakeFromBComplete) ? "yes" : "no");
+        std::cout << "\n  Handshake complete: " << (summary.handshakeComplete ? "yes" : "no");
         // Print whether endpoint A sent a FIN
-        std::cout << "\n  FIN from A: " << (flow.finAtoBSeen ? "yes" : "no");
+        std::cout << "\n  FIN A-to-B: " << (summary.finAtoBSeen ? "yes" : "no");
         // Print whether endpoint B sent a FIN
-        std::cout << "\n  FIN from B: " << (flow.finBtoASeen ? "yes" : "no");
+        std::cout << "\n  FIN B-to-A: " << (summary.finBtoASeen ? "yes" : "no");
         // Print whether either endpoint reset the connection
-        std::cout << "\n  RST observed: " << (flow.rstSeen ? "yes" : "no");
-        // Print number of possible retransmissions
-        std::cout << "\n  Possible retransmissions: " << flow.possibleRetransmissionCount;
-        // Print number of separate gaps first detected in the TCP sequence stream
-        std::cout << "\n  Possible out-of-order events: " << flow.possibleOutOfOrderCount;
-        // Calculate the elapsed time between the first and last packets in the flow
-        double flowDurationSeconds = flow.lastTimestampSeconds - flow.firstTimestampSeconds;
-        // Print duration of flow in seconds
-        std::cout << "\n  Duration: " << flowDurationSeconds << " seconds";
+        std::cout << "\n  RST observed: " << (summary.rstSeen ? "yes" : "no");
 
-        // Calculate rates when the flow has a meaningful duration
-        // (very short flows can cause extremely high rates when very few packets actually sent)
-        if(flowDurationSeconds > 0.01) {
-            // Calculate the average number of TCP packets / second
-            double packetsPerSecond = static_cast<double>(flow.packetCount) / flowDurationSeconds;
-            // Calculate the avg number of TCP payload bytes / second
-            double payloadBytesPerSecond = static_cast<double>(flow.payloadByteCount) / flowDurationSeconds;
-            // Print the average packet rate for the flow
-            std::cout << "\n  Avg packet rate: " << packetsPerSecond << " packets/second";
-            // Print the avg TCP payload throughput for the flow
-            std::cout << "\n  Avg payload throughput: " << payloadBytesPerSecond << " bytes/second";
+        // Print number of possible retransmissions
+        std::cout << "\n  Possible retransmissions: " << summary.possibleRetransmissionCount;
+        // Print number of separate gaps first detected in the TCP sequence stream
+        std::cout << "\n  Possible out-of-order events: " << summary.possibleOutOfOrderCount;
+
+        // Print the elapsed capture time from the prepared summary
+        std::cout << "\n  Duration: " << summary.durationSeconds << " seconds";
+
+        // Print rate stats only when the observed duration is meaningful
+        if(summary.rateStatisticsAvailable) {
+            std::cout << "\n  Avg packet rate: " << summary.packetsPerSecond << " packets/second";
+            std::cout << "\n  Avg payload throughput: " << summary.payloadBytesPerSecond << " bytes/second";
         }
-        // If flow has a very short duration (< 0.01), print insufficient data
         else {
-            // A very short duration flow does not have a meaningful rate
             std::cout << "\n  Avg packet rate: insufficient data"
                     << "\n  Avg payload throughput: insufficient data";
         }
-        // Print black lines after flow summary
+
+        // Print blank lines after flow summary
         std::cout << "\n\n";
     }
 }
