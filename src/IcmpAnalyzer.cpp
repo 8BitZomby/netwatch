@@ -51,41 +51,92 @@ void updateIcmpEchoTracking(IcmpEchoExchangeMap& echoExchanges, const PacketInfo
 
 
 /**
- * printIcmpEchoSummaries
- * 
+ * calculateIcmpEchoSummary
+ * Calculates aggregate statistics from all tracked ICMP Echo exchanges
+ * The returned summary contains no presentation logic, allowing the same
+ * statistics to be used by the CLI, GUI, or export function
+ */
+IcmpEchoSummary calculateIcmpEchoSummary(const IcmpEchoExchangeMap& echoExchanges) {
+    // Initialize summary - default values
+    IcmpEchoSummary summary;
+    // Total RTT is accumulated separately so the avg can be calculated at the end
+    double totalRoundTripTimeMilliseconds = 0.0;
+    // Examine every tracked Echo Request/Reply exchange
+    for(const auto& [echoKey, exchange] : echoExchanges) {
+        // The key is not needed for aggregate stats
+        (void)echoKey;
+        // Count requests
+        if(exchange.requestSeen) {
+            ++summary.requestCount;
+        }
+        // Count replies
+        if(exchange.replySeen) {
+            ++summary.replyCount;
+        }
+        // Count missing replies
+        if(exchange.requestSeen && !exchange.replySeen) {
+            ++summary.missingReplyCount;
+        }
+        // RTT can only be calculated when both sides of the exchange
+        // were captured and both timestamps are available
+        if(exchange.requestSeen && exchange.replySeen) {
+            double roundTripTimeMilliseconds = (exchange.replyTimestampSeconds -
+                                            exchange.requestTimestampSeconds) * 1000;
+            // Count complete exchanges
+            ++summary.completeExchangeCount;
+            // Aggregate total time
+            totalRoundTripTimeMilliseconds += roundTripTimeMilliseconds;
+
+            // The first complete exchange initializes both RTT limits
+            if(summary.completeExchangeCount == 1) {
+                summary.minimumRoundTripTimeMilliseconds = roundTripTimeMilliseconds;
+                summary.maximumRoundTripTimeMilliseconds = roundTripTimeMilliseconds;
+            }
+            // Compare every exchange after the first one
+            else {
+                // If current time < min time
+                if(roundTripTimeMilliseconds < summary.minimumRoundTripTimeMilliseconds) {
+                    summary.minimumRoundTripTimeMilliseconds = roundTripTimeMilliseconds;
+                }
+                // If current time > max time
+                if(roundTripTimeMilliseconds > summary.maximumRoundTripTimeMilliseconds) {
+                    summary.maximumRoundTripTimeMilliseconds = roundTripTimeMilliseconds;
+                }
+            }
+        }
+    }
+    // Packet loss percentage when request count != 0
+    if(summary.requestCount > 0) {
+        summary.packetLossPercentage =
+                static_cast<double>(summary.missingReplyCount) /
+                static_cast<double>(summary.requestCount) * 100.0;
+    }
+    // When more than one exchange completed, stats are available
+    if(summary.completeExchangeCount > 0) {
+        summary.rttStatisticsAvailable = true;
+        // Calculate average
+        summary.averageRoundTripTimeMilliseconds =
+                totalRoundTripTimeMilliseconds /
+                static_cast<double>(summary.completeExchangeCount);
+    }
+    return summary;
+}
+
+
+/**
+ * printIcmpEchoSummaries()
  * Prints one summary for each tracked Echo Request/Reply pair.
  * Round-trip time is only calculated when both packets were observed.
  */
 void printIcmpEchoSummaries(const IcmpEchoExchangeMap& echoExchanges) {
     std::cout << "ICMP Echo exchanges: " << echoExchanges.size() << "\n";
 
-    // Count how many Echo Requests and Echo Replies were observed
-    std::uint64_t requestCount = 0;
-    std::uint64_t replyCount = 0;
-
-    // Count exchanges where a requests was observed without a matching reply
-    std::uint64_t missingReplyCount = 0;
-
-    // Track RTT statistics only from complete request/reply exchanges
-    std::uint64_t completeExchangeCount = 0;
-    double totalRoundTrimTimeMilliseconds = 0.0;
-    double minimumRoundTripTimeMilliseconds = 0.0;
-    double maximumRoundTripTimeMilliseconds = 0.0;
+    // Calculate all aggregate stats before formatting output
+    // Returned data can also be reused later by GUI, or exporter
+    IcmpEchoSummary summary = calculateIcmpEchoSummary(echoExchanges);
 
     for(const auto& [echoKey, exchange] : echoExchanges) {
-
-        // Count each observed side of the exchange
-        if(exchange.requestSeen) {
-            ++requestCount;
-        }
-        if(exchange.replySeen) {
-            ++replyCount;
-        }
-        // A missing reply means the request appeared but its matching reply didnt
-        if(exchange.requestSeen && !exchange.replySeen) {
-            ++missingReplyCount;
-        }
-
+        // Blank line for spacing
         std::cout << "\n";
         // Print the host that originally sent the Echo Request
         std::cout << "Requester: "
@@ -106,30 +157,10 @@ void printIcmpEchoSummaries(const IcmpEchoExchangeMap& echoExchanges) {
         std::cout << "Request observed: " << (exchange.requestSeen ? "yes" : "no") << "\n"
                 << "Reply observed: " << (exchange.replySeen ? "yes" : "no") << "\n";
 
-                // Round-trip time is valid only when both timestamps are available
+        // Round-trip time is valid only when both timestamps are available
         if(exchange.requestSeen && exchange.replySeen) {
             double roundTripTimeMilliseconds = (exchange.replyTimestampSeconds - 
                                             exchange.requestTimestampSeconds) * 1000.0;
-
-            // Add this complete exchange to the RTT statistics
-            ++completeExchangeCount;
-            totalRoundTrimTimeMilliseconds += roundTripTimeMilliseconds;
-
-            // Initialize the min and max with the first complete exchange
-            if(completeExchangeCount == 1) {
-                minimumRoundTripTimeMilliseconds = roundTripTimeMilliseconds;
-                maximumRoundTripTimeMilliseconds = roundTripTimeMilliseconds;
-            }
-            else {
-                // Update the min RTT when this exchange is faster
-                if(roundTripTimeMilliseconds < minimumRoundTripTimeMilliseconds) {
-                    minimumRoundTripTimeMilliseconds = roundTripTimeMilliseconds;
-                }
-                // Update the max RTT when this exchange is slower
-                if(roundTripTimeMilliseconds > maximumRoundTripTimeMilliseconds) {
-                    maximumRoundTripTimeMilliseconds = roundTripTimeMilliseconds;
-                }
-            }
             std::cout << "Round-trip time: " << roundTripTimeMilliseconds << " ms\n";
         }
         else {
@@ -137,29 +168,25 @@ void printIcmpEchoSummaries(const IcmpEchoExchangeMap& echoExchanges) {
         }
     }
 
-    // Print the aggregate request/reply cound after the per-exchange details
+    // Print the aggregate request/reply counts after the per-exchange details
     std::cout << "\nICMP Echo summary\n"
-            << "  Requests observed: " << requestCount << "\n"
-            << "  Replies observed: " << replyCount << "\n"
-            << "  Missing replies: " << missingReplyCount << "\n";
+            << "  Requests observed: " << summary.requestCount << "\n"
+            << "  Replies observed: " << summary.replyCount << "\n"
+            << "  Missing replies: " << summary.missingReplyCount << "\n";
 
     // Packet loss is based on requests that did not receive a matching reply
-    if(requestCount > 0) {
-        double packetLossPercentage = static_cast<double>(missingReplyCount) /
-                            static_cast<double>(requestCount) * 100;
-        std::cout << "  Packet loss: " << packetLossPercentage << "%\n";
+    if(summary.requestCount > 0) {
+        std::cout << "  Packet loss: " << summary.packetLossPercentage << "%\n";
     }
     else {
         std::cout << "  Packet loss: unavailable\n";
     }
 
-    // RTT statistics require at lease one complete request/reply exchange
-    if(completeExchangeCount > 0) {
-        double averageRoundTripTimeMilliseconds = totalRoundTrimTimeMilliseconds /
-                static_cast<double>(completeExchangeCount);
-        std::cout << "  Minimum RTT: " << minimumRoundTripTimeMilliseconds << " ms\n"
-                << "  Maximum RTT: " << maximumRoundTripTimeMilliseconds << " ms\n"
-                << "  Average RTT: " << averageRoundTripTimeMilliseconds << " ms\n";
+    // RTT statistics require at least one complete request/reply exchange
+    if(summary.rttStatisticsAvailable) {
+        std::cout << "  Minimum RTT: " << summary.minimumRoundTripTimeMilliseconds << " ms\n"
+                << "  Maximum RTT: " << summary.maximumRoundTripTimeMilliseconds << " ms\n"
+                << "  Average RTT: " << summary.averageRoundTripTimeMilliseconds << " ms\n";
     }
     else {
         std::cout << "  Minimum RTT: unavailable\n"

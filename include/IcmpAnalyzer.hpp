@@ -59,6 +59,33 @@ struct IcmpEchoExchange {
     double replyTimestampSeconds = 0.0;
 };
 
+/**
+ * IcmpEchoSummary
+ * Store aggregate statistics for all tracked ICMP Echo exchanges
+ * This keeps calculated values separate from terminal output so the same
+ * summary data can later be displayed by the CLI, GUI, or exporter
+ */
+struct IcmpEchoSummary {
+    // Total number of Echo Requests observed
+    std::uint64_t requestCount = 0;
+    // Total number of Echo Replies observed
+    std::uint64_t replyCount = 0;
+    // Requests that did not have a matching Echo Reply
+    std::uint64_t missingReplyCount = 0;
+    // Exchanges where both the request and matching reply were captured
+    std::uint64_t completeExchangeCount = 0;
+    // Percentage of requests without a matching reply
+    double packetLossPercentage = 0.0;
+    // True when at least one complete exchange exists and RTT values are valid
+    bool rttStatisticsAvailable = false;
+    // Lowest round-trip time among complete exchanges
+    double minimumRoundTripTimeMilliseconds = 0.0;
+    // Highest round-trip time among complete exchanges
+    double maximumRoundTripTimeMilliseconds = 0.0;
+    // Mean round-trip time among complete exchanges
+    double averageRoundTripTimeMilliseconds = 0.0;
+};
+
 
 /**
  * Stores all observed ICMP Echo exchanges
@@ -75,6 +102,15 @@ using IcmpEchoExchangeMap = std::map<IcmpEchoKey, IcmpEchoExchange>;
  * when constructing the key so they match the original request
  */
 void updateIcmpEchoTracking(IcmpEchoExchangeMap& echoExchanges, const PacketInfo& packetInfo, double timestampSeconds);
+
+
+/**
+ * calculateIcmpEchoSummary
+ * Calculates aggregate statistics from all tracked ICMP Echo exchanges
+ * The returned summary contains no presentation logic, allowing the same
+ * statistics to be used by the CLI, GUI, or export function
+ */
+IcmpEchoSummary calculateIcmpEchoSummary(const IcmpEchoExchangeMap& echoExchanges);
 
 
 /**
