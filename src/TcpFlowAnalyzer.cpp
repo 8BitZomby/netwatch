@@ -370,10 +370,7 @@ void printTcpEndpoint(const TcpEndpoint& endpoint) {
 /**
  * printTcpFlowSummaries()
  */
-void printTcpFlowSummaries(const std::map<TcpFlowkey, TcpFlow>& tcpFlows) {
-    // Calculate presentation-independent data before formatting output
-    std::vector<TcpFlowSummary> summaries = calculateTcpFlowSummaries(tcpFlows);
-
+void printTcpFlowSummaries(const std::vector<TcpFlowSummary>& summaries) {
     // Separate the capture totals from the TCP flow summaries
     if(!summaries.empty()) {
         std::cout << "\n";

@@ -8,6 +8,7 @@
 #include "PacketParser.hpp"
 #include "TcpFlowAnalyzer.hpp"
 #include "IcmpAnalyzer.hpp"         // ICMP Echo request/reply tracking
+#include "CaptureAnalysis.hpp"
 
 
 void printPacketInfo(const PacketInfo& PacketInfo);
@@ -41,19 +42,13 @@ int main(int argc, char* argv[]) {
         pcap_close(capture);
         return 1;
     }
-    // uint64_t for extended packet length (exactly 64 bits)
-    std::uint64_t packetCount = 0;
-
+    // Points to metadata for the current packet returned by libpcap
     pcap_pkthdr* header;
     // Pointer to read-only raw packet bytes 
     const u_char* data;
 
-    // Create protocol counters
-    std::uint64_t ipv4PacketCount = 0;
-    std::uint64_t tcpPacketCount = 0;
-    std::uint64_t udpPacketCount = 0;
-    std::uint64_t icmpPacketCount = 0;
-    std::uint64_t tftpPacketCount = 0;
+    // Store capture-wide counts and prepared analysis results in one object
+    CaptureAnalysisResult analysisResult;
 
     // Stores all TCP connections identified in the capture
     std::map<TcpFlowkey, TcpFlow> tcpFlows;
@@ -66,18 +61,18 @@ int main(int argc, char* argv[]) {
     while(pcap_next_ex(capture, &header, &data) == 1) {
         // &header points to packet metadata
         // &data points to its bytes
-        ++packetCount;  // Count packets
+        ++analysisResult.packetCount;  // Count packets
 
         // Parse every packet and store its decoded protocol information.
         PacketInfo packetInfo = parsePacket(data, header->caplen);
 
         // Count IPv4 packets
         if(packetInfo.etherType == 0x0800)
-            ++ipv4PacketCount;
+            ++analysisResult.ipv4PacketCount;
         // Count TCP packets and update statistics for its direction-independent connection
         if(packetInfo.ipProtocol == 6) {
             // Count TCP packets in capture
-            ++tcpPacketCount;
+            ++analysisResult.tcpPacketCount;
 
             // Convert the current packet's capture timestamp to seconds
             double currentTimestampSeconds =                                // tv_sec stores whole seconds
@@ -89,20 +84,20 @@ int main(int argc, char* argv[]) {
         }
         // Count UDP packets
         if(packetInfo.ipProtocol == 17) {
-            ++udpPacketCount;
+            ++analysisResult.udpPacketCount;
         }
         // Count ICMP packets and update Echo request/reply tracking
         if(packetInfo.ipProtocol == 1) {
-            ++icmpPacketCount;
+            ++analysisResult.icmpPacketCount;
             // Convert this packet's capture timestamp to seconds
             double currentTimestampSeconds = static_cast<double>(header->ts.tv_sec) +
                                 static_cast<double>(header->ts.tv_usec) / 1000000.0;
             // Record Echo Requests and match Echo Replies to them
             updateIcmpEchoTracking(icmpEchoExchanges, packetInfo, currentTimestampSeconds);
         }
-        // Count identified TFTP initial-request packets
+        // Count packets currently identified as TFTP
         if(packetInfo.isTFTP) {
-            ++tftpPacketCount;
+            ++analysisResult.tftpPacketCount;
         }
         // For first packet, print the packet information
         //if(packetCount == 1) {
@@ -110,30 +105,38 @@ int main(int argc, char* argv[]) {
             printPacketInfo(packetInfo);
         }
         // Print header information for the first 5 packets
-        if(packetCount <= 5) {
-            std::cout << "Packet: " << packetCount
+        if(analysisResult.packetCount <= 5) {
+            std::cout << "Packet: " << analysisResult.packetCount
                     << ": captured = " << header->caplen
                     << " bytes, original = " << header->len
                     << " bytes\n";
         }
     }
     pcap_close(capture);
+
+    // Convert the tracked TCP flows into presentation-independent summaries
+    analysisResult.tcpFlowSummaries = calculateTcpFlowSummaries(tcpFlows);
+    // Store the tracked ICMP Echo exchanges in the capture-level result
+    analysisResult.icmpEchoExchanges = icmpEchoExchanges;
+    // Calculate aggregate ICMP Echo stats from the tracked exchanges
+    analysisResult.icmpEchoSummary = calculateIcmpEchoSummary(analysisResult.icmpEchoExchanges);
+
     // Print number of packets processed
-    std::cout << "Packets processed: " << packetCount << "\n";
+    std::cout << "Packets processed: " << analysisResult.packetCount << "\n";
     // Print packet counts
-    std::cout << "IPv4 packets: " << ipv4PacketCount << "\n"
-            << "TCP packets: " << tcpPacketCount << "\n"
-            << "UDP packets: " << udpPacketCount << "\n"
-            << "ICMP packets: " << icmpPacketCount << "\n"
-            << "TFTP initial requests: " << tftpPacketCount << "\n";
+    std::cout << "IPv4 packets: " << analysisResult.ipv4PacketCount << "\n"
+            << "TCP packets: " << analysisResult.tcpPacketCount << "\n"
+            << "UDP packets: " << analysisResult.udpPacketCount << "\n"
+            << "ICMP packets: " << analysisResult.icmpPacketCount << "\n"
+            << "TFTP packets: " << analysisResult.tftpPacketCount << "\n";
     
     // Print the number of direction-independent TCP connections found
-    std::cout << "TCP flows: " << tcpFlows.size() << "\n";
+    std::cout << "TCP flows: " << analysisResult.tcpFlowSummaries.size() << "\n";
 
     // Print summaries for all tracked TCP flows
-    printTcpFlowSummaries(tcpFlows);
+    printTcpFlowSummaries(analysisResult.tcpFlowSummaries);
     // Print summaries for all tracked ICMP Echo exchanges
-    printIcmpEchoSummaries(icmpEchoExchanges);
+    printIcmpEchoSummaries(analysisResult.icmpEchoExchanges, analysisResult.icmpEchoSummary);
 }
 
 
