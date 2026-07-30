@@ -114,9 +114,9 @@ IcmpEchoSummary calculateIcmpEchoSummary(const IcmpEchoExchangeMap& echoExchange
 
 
 /**
- * Prints all tracked ICMP Echo exchanges and their round-trip times
+ * Prints tracked ICMP Echo exchanges using an already calculated summary
  */
-void printIcmpEchoSummaries(const IcmpEchoExchangeMap& echoExchanges);
+void printIcmpEchoSummaries(const IcmpEchoExchangeMap& echoExchanges, const IcmpEchoSummary& summary);
 
 
 #endif

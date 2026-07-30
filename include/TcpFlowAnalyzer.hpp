@@ -67,6 +67,6 @@ std::vector<TcpFlowSummary> calculateTcpFlowSummaries(const std::map<TcpFlowkey,
 void printTcpEndpoint(const TcpEndpoint& endpoint);
 
 // Prints a summary for every tracked TCP flow
-void printTcpFlowSummaries(const std::map<TcpFlowkey, TcpFlow>& tcpFlows);
+void printTcpFlowSummaries(const std::vector<TcpFlowSummary>& summaries);
 
 #endif

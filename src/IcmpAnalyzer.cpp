@@ -128,13 +128,10 @@ IcmpEchoSummary calculateIcmpEchoSummary(const IcmpEchoExchangeMap& echoExchange
  * Prints one summary for each tracked Echo Request/Reply pair.
  * Round-trip time is only calculated when both packets were observed.
  */
-void printIcmpEchoSummaries(const IcmpEchoExchangeMap& echoExchanges) {
+void printIcmpEchoSummaries(const IcmpEchoExchangeMap& echoExchanges, const IcmpEchoSummary& summary) {
+    // Print number of ICMP Echo exchanges
     std::cout << "ICMP Echo exchanges: " << echoExchanges.size() << "\n";
-
-    // Calculate all aggregate stats before formatting output
-    // Returned data can also be reused later by GUI, or exporter
-    IcmpEchoSummary summary = calculateIcmpEchoSummary(echoExchanges);
-
+    // Print each tracked ICMP Echo exchange using the stored exchange data
     for(const auto& [echoKey, exchange] : echoExchanges) {
         // Blank line for spacing
         std::cout << "\n";
