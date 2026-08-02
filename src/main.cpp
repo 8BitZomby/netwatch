@@ -9,6 +9,7 @@
 #include "TcpFlowAnalyzer.hpp"
 #include "IcmpAnalyzer.hpp"         // ICMP Echo request/reply tracking
 #include "CaptureAnalysis.hpp"
+#include "TftpAnalyzer.hpp"
 
 
 void printPacketInfo(const PacketInfo& PacketInfo);
@@ -56,6 +57,9 @@ int main(int argc, char* argv[]) {
     // Stores ICMP Echo Requests and their matching Replies
     IcmpEchoExchangeMap icmpEchoExchanges;
 
+    // Stores all TFTP transfers identified across the capture
+    TftpTransferMap tftpTransfers;
+
     // Process pcap one packet at a time
     // pcap_next_ex() returns (0: timeout, 1: successful read, -1: error, -2: EOF)
     while(pcap_next_ex(capture, &header, &data) == 1) {
@@ -84,7 +88,11 @@ int main(int argc, char* argv[]) {
         }
         // Count UDP packets
         if(packetInfo.ipProtocol == 17) {
+            // Count UDP packets in the capture
             ++analysisResult.udpPacketCount;
+
+            // Update state for any TFTP transfer this UDP packet belongs to
+            updateTftpTransferTracking(tftpTransfers, data, header->caplen, packetInfo);
         }
         // Count ICMP packets and update Echo request/reply tracking
         if(packetInfo.ipProtocol == 1) {
@@ -116,6 +124,8 @@ int main(int argc, char* argv[]) {
 
     // Convert the tracked TCP flows into presentation-independent summaries
     analysisResult.tcpFlowSummaries = calculateTcpFlowSummaries(tcpFlows);
+    // Store all tracked TFTP transfers in the capture-level result
+    analysisResult.tftpTransfers = tftpTransfers;
     // Store the tracked ICMP Echo exchanges in the capture-level result
     analysisResult.icmpEchoExchanges = icmpEchoExchanges;
     // Calculate aggregate ICMP Echo stats from the tracked exchanges
@@ -133,8 +143,12 @@ int main(int argc, char* argv[]) {
     // Print the number of direction-independent TCP connections found
     std::cout << "TCP flows: " << analysisResult.tcpFlowSummaries.size() << "\n";
 
+    // Print the number of distinct TFTP transfers found in the capture
+    std::cout << "TFTP transfers: " << analysisResult.tftpTransfers.size() << "\n";
     // Print summaries for all tracked TCP flows
     printTcpFlowSummaries(analysisResult.tcpFlowSummaries);
+    // Print summaries for all tracked TFTP transfers
+    printTftpTransferSummaries(analysisResult.tftpTransfers);
     // Print summaries for all tracked ICMP Echo exchanges
     printIcmpEchoSummaries(analysisResult.icmpEchoExchanges, analysisResult.icmpEchoSummary);
 }

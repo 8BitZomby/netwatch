@@ -3,6 +3,7 @@
 
 #include "TcpFlowAnalyzer.hpp"
 #include "IcmpAnalyzer.hpp"
+#include "TftpAnalyzer.hpp"
 
 #include <cstdint>
 #include <vector>
@@ -30,6 +31,9 @@ struct CaptureAnalysisResult {
 
     // Individual ICMP Echo Request/Reply exchanges
     IcmpEchoExchangeMap icmpEchoExchanges;
+
+    // All TFTP transfers tracked across the capture
+    TftpTransferMap tftpTransfers;
 
     // Aggregate statistics calculated from the ICMP Echo exchanges
     IcmpEchoSummary icmpEchoSummary;
