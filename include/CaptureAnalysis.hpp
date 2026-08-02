@@ -19,6 +19,9 @@ struct CaptureAnalysisResult {
     // Total number of packets read from the capture
     std::uint64_t packetCount = 0;
 
+    // Link-layer type reported by libpcap for this capture
+    int linkType = 0;
+
     // Packet totals grouped by supported network and transport protocols
     std::uint64_t ipv4PacketCount = 0;
     std::uint64_t tcpPacketCount = 0;
