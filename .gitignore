@@ -25,6 +25,7 @@ netwatch
 # IDE / editor
 .vscode/
 .idea/
+.cache/
 
 # Packet captures
 captures/*.pcap

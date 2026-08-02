@@ -21,6 +21,7 @@ add_executable(netwatch
     src/PacketParser.cpp
     src/TcpFlowAnalyzer.cpp
     src/IcmpAnalyzer.cpp
+    src/TftpAnalyzer.cpp
 )
 
 target_include_directories(netwatch PRIVATE
