@@ -1,10 +1,13 @@
 #include "CaptureAnalyzer.hpp"
-#include "TcpFlowAnalyzer.hpp"
+#include "CommandLine.hpp"
 #include "IcmpAnalyzer.hpp"
+#include "PacketFilter.hpp"
+#include "TcpFlowAnalyzer.hpp"
 #include "TftpAnalyzer.hpp"
 
 #include <pcap.h>
 
+#include <cstdint>
 #include <iostream>
 
 
@@ -12,7 +15,8 @@
  * analyzeCapture()
  * Reads a packet-capture file and returns the complete analysis result
  */
-CaptureAnalysisResult analyzeCapture(const std::string& capturePath, bool retainPackets) {
+CaptureAnalysisResult analyzeCapture(const std::string& capturePath, const CommandLineOptions& options) {
+
     CaptureAnalysisResult analysisResult;
 
     // Buffer used by libpcap to report file-opening errors
@@ -61,8 +65,13 @@ CaptureAnalysisResult analyzeCapture(const std::string& capturePath, bool retain
         // Parse the current packet into structured packet information
         PacketInfo packetInfo = parsePacket(data, header->caplen);
 
+        // Skip packets that do not satisfy the requested filters
+        if(!packetMatchesFilters(packetInfo, options)) {
+            continue;
+        }
+
         // Retain decoded packet details only when packet-level output was requested
-        if(retainPackets) {
+        if(options.showPackets || options.showAll) {
             analysisResult.packets.push_back(packetInfo);
         }
 

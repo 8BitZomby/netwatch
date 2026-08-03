@@ -22,7 +22,7 @@ int main(int argc, char* argv[]) {
     }
 
     // Analyze the capture file and collect all protocol statistics
-    CaptureAnalysisResult analysisResult = analyzeCapture(options.capturePath, options.showPackets || options.showAll);
+    CaptureAnalysisResult analysisResult = analyzeCapture(options.capturePath, options);
 
     // Stop if the capture could not be analyzed
     if(!analysisResult.success) {

@@ -15,6 +15,7 @@ Available flags:
 - `--tftp` - print detailed TFTP transfer summaries
 - `--packets` - print detailed information for every decoded packet
 - `--all` - print all detailed output sections
+- `--port <1-65535>` - filter packets where either the source or destination port matches the specified port
 
 Multiple specific flags can be combined. For example:
 
@@ -28,3 +29,6 @@ Multiple specific flags can be combined. For example:
 ./build/netwatch captures/icmp-test.pcapng --icmp --packets
 ```
 
+```bash
+./built/netwatch captures/shark1.pcapng --tcp --port 80
+```

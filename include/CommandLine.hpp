@@ -1,8 +1,38 @@
 #ifndef COMMAND_LINE_HPP
 #define COMMAND_LINE_HPP
 
+#include <cstdint>
 #include <string>
+#include <string_view>
 #include <vector>
+
+
+/**
+ * CommandLineOption
+ * Identifies each supported command-line option
+ */
+enum class CommandLineOption {Port, Tcp, Icmp, Tftp, Packets, All, Unknown};
+
+
+/**
+ * CommandLineOptionInfo
+ * Stores display information for a supported command-line option
+ */
+struct CommandLineOptionInfo {
+    std::string_view name;
+    std::string_view usage;
+};
+
+
+/**
+ * CommandLineError
+ * Stores a command-line error and the correct usage for that option
+ */
+struct CommandLineError {
+    std::string message;
+    CommandLineOption option;
+};
+
 
 /**
  * CommandLineOptions
@@ -13,7 +43,10 @@ struct CommandLineOptions {
     // Path for the capture file
     std::string capturePath;
 
-    // Unknown CLI arguments
+    // Unknown CLI arguments/errors
+    std::vector<CommandLineError> errors;
+
+    // Unknown CLI options
     std::vector<std::string> unknownOptions;
 
     // Command line flags
@@ -22,7 +55,18 @@ struct CommandLineOptions {
     bool showTftp = false;
     bool showPackets = false;
     bool showAll = false;
+
+    // Optional transport-layer port filter
+    bool hasPortFilter = false;
+    std::uint16_t port = 0;
 };
+
+
+/**
+ * getCommandLineOptionInfo()
+ * Returns the name and usage syntax for a supported command-line option
+ */
+const CommandLineOptionInfo& getCommandLineOptionInfo(CommandLineOption option);
 
 
 /**
