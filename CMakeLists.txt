@@ -18,8 +18,10 @@ find_library(PCAP_LIBRARY
 
 add_executable(netwatch
     src/CaptureAnalyzer.cpp
+    src/CommandLine.cpp
     src/IcmpAnalyzer.cpp
     src/main.cpp
+    src/Output.cpp
     src/PacketParser.cpp
     src/TcpFlowAnalyzer.cpp
     src/TftpAnalyzer.cpp
