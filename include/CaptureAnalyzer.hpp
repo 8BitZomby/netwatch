@@ -10,6 +10,6 @@
  * analyzeCapture()
  * Reads a packet-capture file and returns the complete analysis result
  */
-CaptureAnalysisResult analyzeCapture(const std::string& capturePath);
+CaptureAnalysisResult analyzeCapture(const std::string& capturePath, bool retainPackets);
 
 #endif

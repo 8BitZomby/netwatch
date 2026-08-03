@@ -1,8 +1,9 @@
 #ifndef CAPTURE_ANALYSIS_HPP
 #define CAPTURE_ANALYSIS_HPP
 
-#include "TcpFlowAnalyzer.hpp"
 #include "IcmpAnalyzer.hpp"
+#include "PacketParser.hpp"
+#include "TcpFlowAnalyzer.hpp"
 #include "TftpAnalyzer.hpp"
 
 #include <cstdint>
@@ -16,6 +17,9 @@
  * a common source of capture information.
  */
 struct CaptureAnalysisResult {
+    // Capture opened successfully
+    bool success = false;
+
     // Total number of packets read from the capture
     std::uint64_t packetCount = 0;
 
@@ -28,6 +32,9 @@ struct CaptureAnalysisResult {
     std::uint64_t udpPacketCount = 0;
     std::uint64_t icmpPacketCount = 0;
     std::uint64_t tftpPacketCount = 0;
+
+    // Decoded packet information retain when packet-level output is requested
+    std::vector<PacketInfo> packets;
 
     // Presentation-independent summary data for every tracked TCP flow
     std::vector<TcpFlowSummary> tcpFlowSummaries;

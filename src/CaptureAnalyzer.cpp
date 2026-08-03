@@ -12,7 +12,7 @@
  * analyzeCapture()
  * Reads a packet-capture file and returns the complete analysis result
  */
-CaptureAnalysisResult analyzeCapture(const std::string& capturePath) {
+CaptureAnalysisResult analyzeCapture(const std::string& capturePath, bool retainPackets) {
     CaptureAnalysisResult analysisResult;
 
     // Buffer used by libpcap to report file-opening errors
@@ -60,6 +60,11 @@ CaptureAnalysisResult analyzeCapture(const std::string& capturePath) {
 
         // Parse the current packet into structured packet information
         PacketInfo packetInfo = parsePacket(data, header->caplen);
+
+        // Retain decoded packet details only when packet-level output was requested
+        if(retainPackets) {
+            analysisResult.packets.push_back(packetInfo);
+        }
 
         // Convert the libpcap timestamp into seconds
         double timestampSeconds =
@@ -118,6 +123,9 @@ CaptureAnalysisResult analyzeCapture(const std::string& capturePath) {
 
     // Close the capture file now that analysis is complete
     pcap_close(capture);
+
+    // Analyzsis completed successfully
+    analysisResult.success = true;
 
     return analysisResult;
 }

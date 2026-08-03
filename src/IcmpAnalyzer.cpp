@@ -129,8 +129,7 @@ IcmpEchoSummary calculateIcmpEchoSummary(const IcmpEchoExchangeMap& echoExchange
  * Round-trip time is only calculated when both packets were observed.
  */
 void printIcmpEchoSummaries(const IcmpEchoExchangeMap& echoExchanges, const IcmpEchoSummary& summary) {
-    // Print number of ICMP Echo exchanges
-    std::cout << "ICMP Echo exchanges: " << echoExchanges.size() << "\n";
+
     // Print each tracked ICMP Echo exchange using the stored exchange data
     for(const auto& [echoKey, exchange] : echoExchanges) {
         // Blank line for spacing
