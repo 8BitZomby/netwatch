@@ -48,52 +48,181 @@ void printRequestedOutput(const CaptureAnalysisResult& analysisResult, const Com
 }
 
 
-
 /**
- * getIcmpCodeDescription()
- * Returns a human-readable description for an ICMP code
+ * printTcpEndpoint()
+ * Prints one TCP endpoint in IPv4-address-and-port format
  */
-const char* getIcmpCodeDescription(std::uint8_t type, std::uint8_t code) {
-    //  Echo Request & Echo Reply use code 0
-    if(type == 0 || type == 8) {
-        return code == 0 ? "No code" : "Unknown";
-    }
-    // Destination Unreachable codes describe why delivery failed
-    if(type == 3) {
-        switch(code) {
-            case 0: return "Network unreachable";
-            case 1: return "Host unreachable";
-            case 2: return "Protocol unreachable";
-            case 3: return "Port unreachable";
-            case 4: return "Fragmentation required";
-            case 5: return "Source route failed";
-            case 9: return "Netowrk administratively prohibited";
-            case 10: return "Host administratively prohibited";
-            case 13: return "Communication administratively prohibited";
-            default: return "Unknown";
-        }
-    }
-    // Redirect codes identify the preferred route type
-    if(type == 5) {
-        switch(code) {
-            case 0: return "Redirect for network";
-            case 1: return "Redirect for host";
-            case 2: return "Redirect for service and network";
-            case 3: return "Redirect for service and host";
-            default: return "Unknown";
-        }
-    }
-    // Time Exceeded codes distinguish routing and reassembly failures
-    if(type == 11) {
-        switch(code) {
-            case 0: return "TTL expired in transit";
-            case 1: return "Fragment reassembly time exceeded";
-            default: return "Unknown";
-        }
-    }
-    return "Unknown";
+void printTcpEndpoint(const TcpEndpoint& endpoint) {
+    // Print the four IPv4 address bytes separated by periods
+    std::cout << static_cast<int>(endpoint.ip[0]) << "."
+            << static_cast<int>(endpoint.ip[1]) << "."
+            << static_cast<int>(endpoint.ip[2]) << "."
+            << static_cast<int>(endpoint.ip[3]);
+    // Print the endpoint's port number after the IPv4 address
+    std::cout << ":" << endpoint.port;
 }
 
+
+/**
+ * printTcpFlowSummaries()
+ */
+void printTcpFlowSummaries(const std::vector<TcpFlowSummary>& summaries) {
+    // Separate the capture totals from the TCP flow summaries
+    if(!summaries.empty()) {
+        std::cout << "\n";
+    }
+
+    // Print each prepared TCP flow summary
+    for(const TcpFlowSummary& summary : summaries) {
+        // Print the first normalized endpoint
+        printTcpEndpoint(summary.flowKey.endpointA);
+        // Separate the two endpoints with a bidirectional connection marker
+        std::cout << " <-> ";
+        // Print the second normalized endpoint
+        printTcpEndpoint(summary.flowKey.endpointB);
+
+        // Print the combined total from A-to-B and B-to-A
+        std::cout << "\n  Total packets: " << summary.packetCount
+                <<"\n  Payload bytes: " << summary.payloadByteCount;
+        // Print the totals for traffic sent from endpoint A to endpoint B
+        std::cout << "\n  A-to-B packets: " << summary.packetsAtoB
+                << "\n  A-to-B payload bytes: " << summary.payloadBytesAtoB;
+        // Print the totals for traffic sent from endpoint B to endpoint A
+        std::cout << "\n  B-to-A packets: " << summary.packetsBtoA
+                << "\n  B-to-A payload bytes: " << summary.payloadBytesBtoA << "\n";
+
+        // Print whether either valid 3-way handshake was observed
+        std::cout << "\n  Handshake complete: " << (summary.handshakeComplete ? "yes" : "no");
+        // Print whether endpoint A sent a FIN
+        std::cout << "\n  FIN A-to-B: " << (summary.finAtoBSeen ? "yes" : "no");
+        // Print whether endpoint B sent a FIN
+        std::cout << "\n  FIN B-to-A: " << (summary.finBtoASeen ? "yes" : "no");
+        // Print whether either endpoint reset the connection
+        std::cout << "\n  RST observed: " << (summary.rstSeen ? "yes" : "no");
+
+        // Print number of possible retransmissions
+        std::cout << "\n  Possible retransmissions: " << summary.possibleRetransmissionCount;
+        // Print number of separate gaps first detected in the TCP sequence stream
+        std::cout << "\n  Possible out-of-order events: " << summary.possibleOutOfOrderCount;
+
+        // Print the elapsed capture time from the prepared summary
+        std::cout << "\n  Duration: " << summary.durationSeconds << " seconds";
+
+        // Print rate stats only when the observed duration is meaningful
+        if(summary.rateStatisticsAvailable) {
+            std::cout << "\n  Avg packet rate: " << summary.packetsPerSecond << " packets/second";
+            std::cout << "\n  Avg payload throughput: " << summary.payloadBytesPerSecond << " bytes/second";
+        }
+        else {
+            std::cout << "\n  Avg packet rate: insufficient data"
+                    << "\n  Avg payload throughput: insufficient data";
+        }
+
+        // Print blank lines after flow summary
+        std::cout << "\n\n";
+    }
+}
+
+
+/**
+ * printTftpTransferSummaries()
+ * Prints the stored endpoint and request information for each tracked TFTP transfer
+ */
+void printTftpTransferSummaries(const TftpTransferMap& transfers) {
+    // Separate the capture totals from the TFTP transfer summaries
+    if(!transfers.empty()) {
+        std::cout << "\n";
+    }
+    // Print one summary for each tracked TFTP transfer
+    for(const auto& [key, transfer] : transfers) {
+        std::cout << "TFTP transfer\n"
+                << "  Client IP: "
+                    << static_cast<int>(key.clientIp[0]) << "."
+                    << static_cast<int>(key.clientIp[1]) << "."
+                    << static_cast<int>(key.clientIp[2]) << "."
+                    << static_cast<int>(key.clientIp[3]) << "\n"
+                << "  Client port: " << key.clientPort << "\n"
+                << "  Server IP: "
+                    << static_cast<int>(key.serverIp[0]) << "."
+                    << static_cast<int>(key.serverIp[1]) << "."
+                    << static_cast<int>(key.serverIp[2]) << "."
+                    << static_cast<int>(key.serverIp[3]) << "\n"
+                << "  Server port: " << key.serverPort << "\n"
+                << "  Filename: " << transfer.filename << "\n"
+                << "  Mode: " << transfer.mode << "\n"
+                << "  Packets: " << transfer.packetCount << "\n\n";
+    }
+}
+
+
+/**
+ * printIcmpEchoSummaries()
+ * Prints one summary for each tracked Echo Request/Reply pair.
+ * Round-trip time is only calculated when both packets were observed.
+ */
+void printIcmpEchoSummaries(const IcmpEchoExchangeMap& echoExchanges, const IcmpEchoSummary& summary) {
+
+    // Print each tracked ICMP Echo exchange using the stored exchange data
+    for(const auto& [echoKey, exchange] : echoExchanges) {
+        // Blank line for spacing
+        std::cout << "\n";
+        // Print the host that originally sent the Echo Request
+        std::cout << "Requester: "
+                << static_cast<int>(echoKey.requesterIp[0]) << "."
+                << static_cast<int>(echoKey.requesterIp[1]) << "."
+                << static_cast<int>(echoKey.requesterIp[2]) << "."
+                << static_cast<int>(echoKey.requesterIp[3]) << "\n";
+        // Print the host expected to return the Echo Reply
+        std::cout << "Responder: "
+                << static_cast<int>(echoKey.responderIp[0]) << "."
+                << static_cast<int>(echoKey.responderIp[1]) << "."
+                << static_cast<int>(echoKey.responderIp[2]) << "."
+                << static_cast<int>(echoKey.responderIp[3]) << "\n";
+        // Print the fields that identify this individual Echo exchange
+        std::cout << "Identifier: " << echoKey.identifier << "\n"
+                << "Sequence number: " << echoKey.sequenceNumber << "\n";
+        // Report whether each side of the exchange appeared in the capture
+        std::cout << "Request observed: " << (exchange.requestSeen ? "yes" : "no") << "\n"
+                << "Reply observed: " << (exchange.replySeen ? "yes" : "no") << "\n";
+
+        // Round-trip time is valid only when both timestamps are available
+        if(exchange.roundTripTimeAvailable) {
+            std::cout << "Round-trip time: " << exchange.roundTripTimeMilliseconds << " ms\n";
+        }
+        else {
+            std::cout << "Round-trip time: unavailable\n";
+        }
+    }
+
+    // Print the aggregate request/reply counts after the per-exchange details
+    std::cout << "\nICMP Echo summary\n"
+            << "  Requests observed: " << summary.requestCount << "\n"
+            << "  Replies observed: " << summary.replyCount << "\n"
+            << "  Missing replies: " << summary.missingReplyCount << "\n";
+
+    // Packet loss is based on requests that did not receive a matching reply
+    if(summary.requestCount > 0) {
+        std::cout << "  Packet loss: " << summary.packetLossPercentage << "%\n";
+    }
+    else {
+        std::cout << "  Packet loss: unavailable\n";
+    }
+
+    // RTT statistics require at least one complete request/reply exchange
+    if(summary.rttStatisticsAvailable) {
+        std::cout << "  Minimum RTT: " << summary.minimumRoundTripTimeMilliseconds << " ms\n"
+                << "  Maximum RTT: " << summary.maximumRoundTripTimeMilliseconds << " ms\n"
+                << "  Average RTT: " << summary.averageRoundTripTimeMilliseconds << " ms\n";
+    }
+    else {
+        std::cout << "  Minimum RTT: unavailable\n"
+                << "  Maximum RTT: unavailable\n"
+                << "  Average RTT: unavailable\n";
+    }
+
+    // Final newline
+    std::cout << "\n";
+}
 
 
 /**

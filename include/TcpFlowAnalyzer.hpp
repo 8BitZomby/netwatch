@@ -63,10 +63,5 @@ void updateTcpFlow(std::map<TcpFlowkey, TcpFlow>& tcpFlows, const PacketInfo& pa
  */
 std::vector<TcpFlowSummary> calculateTcpFlowSummaries(const std::map<TcpFlowkey, TcpFlow>& tcpFlows);
 
-// Prints one TCP endpoint in IPv4-address-and-port format
-void printTcpEndpoint(const TcpEndpoint& endpoint);
-
-// Prints a summary for every tracked TCP flow
-void printTcpFlowSummaries(const std::vector<TcpFlowSummary>& summaries);
 
 #endif

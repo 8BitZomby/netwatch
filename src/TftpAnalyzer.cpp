@@ -1,8 +1,6 @@
 #include "TftpAnalyzer.hpp"
 #include "PacketParser.hpp"
 
-#include <iostream>
-
 
 /**
  * updateTftpTransferTracking()
@@ -112,35 +110,4 @@ void updateTftpTransferTracking(TftpTransferMap& transfers, const u_char* data, 
 		}
 	}
 
-}
-
-
-/**
- * printTftpTransferSummaries()
- * Prints the stored endpoint and request information for each tracked TFTP transfer
- */
-void printTftpTransferSummaries(const TftpTransferMap& transfers) {
-    // Separate the capture totals from the TFTP transfer summaries
-    if(!transfers.empty()) {
-        std::cout << "\n";
-    }
-    // Print one summary for each tracked TFTP transfer
-    for(const auto& [key, transfer] : transfers) {
-        std::cout << "TFTP transfer\n"
-                << "  Client IP: "
-                    << static_cast<int>(key.clientIp[0]) << "."
-                    << static_cast<int>(key.clientIp[1]) << "."
-                    << static_cast<int>(key.clientIp[2]) << "."
-                    << static_cast<int>(key.clientIp[3]) << "\n"
-                << "  Client port: " << key.clientPort << "\n"
-                << "  Server IP: "
-                    << static_cast<int>(key.serverIp[0]) << "."
-                    << static_cast<int>(key.serverIp[1]) << "."
-                    << static_cast<int>(key.serverIp[2]) << "."
-                    << static_cast<int>(key.serverIp[3]) << "\n"
-                << "  Server port: " << key.serverPort << "\n"
-                << "  Filename: " << transfer.filename << "\n"
-                << "  Mode: " << transfer.mode << "\n"
-                << "  Packets: " << transfer.packetCount << "\n\n";
-    }
 }

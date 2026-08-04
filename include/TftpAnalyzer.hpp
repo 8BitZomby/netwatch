@@ -71,7 +71,4 @@ using TftpTransferMap = std::map<TftpTransferKey, TftpTransfer>;
 void updateTftpTransferTracking(TftpTransferMap& transfers, const u_char* data, std::size_t capturedLength, PacketInfo& packetInfo);
 
 
-// Prints a summary for every tracked TFTP transfer
-void printTftpTransferSummaries(const TftpTransferMap& transfers);
-
 #endif
