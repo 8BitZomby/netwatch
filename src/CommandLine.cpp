@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <iostream>
+#include <sstream>
 #include <string>
 
 
@@ -13,6 +14,9 @@ const CommandLineOptionInfo& getCommandLineOptionInfo(CommandLineOption option) 
     static const CommandLineOptionInfo portOption = {"--port", "--port <1-65535>"};
     static const CommandLineOptionInfo sourcePortOption = {"--src-port", "--src-port <1-65535>"};
     static const CommandLineOptionInfo destinationPortOption = {"--dst-port", "--dst-port <1-65535>"};
+    static const CommandLineOptionInfo ipOption = {"--ip", "--ip <IPv4-address>"};
+    static const CommandLineOptionInfo sourceIpOption = {"--src-ip", "--src-ip <IPv4-address>"};
+    static const CommandLineOptionInfo destinationIpOption = {"--dst-ip", "--dst-ip <IPv4-address>"};
     static const CommandLineOptionInfo tcpOption = {"--tcp", "--tcp"};
     static const CommandLineOptionInfo icmpOption = {"--icmp", "--icmp"};
     static const CommandLineOptionInfo tftpOption = {"--tftp", "--tftp"};
@@ -24,6 +28,9 @@ const CommandLineOptionInfo& getCommandLineOptionInfo(CommandLineOption option) 
         case CommandLineOption::Port: return portOption;
         case CommandLineOption::SourcePort: return sourcePortOption;
         case CommandLineOption::DestinationPort: return destinationPortOption;
+        case CommandLineOption::Ip: return ipOption;
+        case CommandLineOption::SourceIp: return sourceIpOption;
+        case CommandLineOption::DestinationIp: return destinationIpOption;
         case CommandLineOption::Tcp: return tcpOption;
         case CommandLineOption::Icmp: return icmpOption;
         case CommandLineOption::Tftp: return tftpOption;
@@ -33,6 +40,50 @@ const CommandLineOptionInfo& getCommandLineOptionInfo(CommandLineOption option) 
     }
     // Should never reach this return
     return unknownOption;
+}
+
+
+/**
+ * parseIpv4Address()
+ * Converts dotted-decimal IPv4 text into four address bytes
+ */
+bool parseIpv4Address(const std::string& address, std::array<std::uint8_t, 4>& parsedAddress) {
+
+    // Store the four numeric sections of the IPv4 address
+    int octet1, octet2, octet3, octet4;
+
+    // Reuse one variable to get '.'
+    char dot;
+
+    // Read the address text piece by piece
+    std::istringstream stream(address);
+
+    // Read and validate each octet and separators
+    if(!(stream >> octet1 >> dot) || dot != '.') { return false; }
+    if(!(stream >> octet2 >> dot) || dot != '.') { return false; }
+    if(!(stream >> octet3 >> dot) || dot != '.') { return false; }
+    if(!(stream >> octet4)) { return false; }
+
+    // Each IPv4 octet must fit in one byte
+    if(octet1 < 0 || octet1 > 255 ||
+       octet2 < 0 || octet2 > 255 ||
+       octet3 < 0 || octet3 > 255 ||
+       octet4 < 0 || octet4 > 255) {
+        return false;
+    }
+
+    // Reject any extra characters after the IPv4 address
+    if(stream.peek() != std::char_traits<char>::eof()) { return false; }
+
+    // Store the validated IPv4 address as four bytes
+    parsedAddress = { static_cast<std::uint8_t>(octet1),
+                      static_cast<std::uint8_t>(octet2),
+                      static_cast<std::uint8_t>(octet3),
+                      static_cast<std::uint8_t>(octet4)
+    };
+
+    // Address valid
+    return true;
 }
 
 
@@ -167,6 +218,57 @@ CommandLineOptions parseCommandLine(int argc, char* argv[]) {
                 // std::stoi throws when the supplied value is not a valid integer
                 options.errors.push_back({"Invalid destination port: " + portArgument, CommandLineOption::DestinationPort});
             }
+        }
+
+        // IP Flag
+        else if(argument == "--ip") {
+            // --ip must be followed by an IPv4 address
+            if(i + 1 >= argc) {
+                options.errors.push_back({"Missing value for --ip", CommandLineOption::Ip});
+                continue;
+            }
+            // Move to the argument immediately following --ip
+            std::string ipText = argv[++i];
+            // Validate and convert the IPv4 address into four bytes
+            if(!parseIpv4Address(ipText, options.ipAddress)) {
+                options.errors.push_back({"Invalid IPv4 address: " + ipText, CommandLineOption::Ip});
+                continue;
+            }
+            options.hasIpFilter = true;
+        }
+
+        // Source IP Flag
+        else if(argument == "--src-ip") {
+            // --src-ip must be followed by an IPv4 address
+            if(i + 1 >= argc) {
+                options.errors.push_back({"Missing value for --src-ip", CommandLineOption::SourceIp});
+                continue;
+            }
+            // Move to the argument immediately following --src-ip
+            std::string ipText = argv[++i];
+            // Validate and convert the IPv4 address into four bytes
+            if(!parseIpv4Address(ipText, options.sourceIpAddress)) {
+                options.errors.push_back({"Invalid IPv4 address: " + ipText, CommandLineOption::SourceIp});
+                continue;
+            }
+            options.hasSourceIpFilter = true;
+        }
+
+        // Destination IP Flag
+        else if(argument == "--dst-ip") {
+            // --dst-ip must be followed by an IPv4 address
+            if(i + 1 >= argc) {
+                options.errors.push_back({"Missing value for --dst-ip", CommandLineOption::DestinationIp});
+                continue;
+            }
+            // Move to the argument immediately following --dst-ip
+            std::string ipText = argv[++i];
+            // Validate and convert the IPv4 address into four bytes
+            if(!parseIpv4Address(ipText, options.destinationIpAddress)) {
+                options.errors.push_back({"Invalid IPv4 address: " + ipText, CommandLineOption::DestinationIp});
+                continue;
+            }
+            options.hasDestinationIpFilter = true;
         }
 
         // Unknown flag

@@ -1,6 +1,7 @@
 #ifndef COMMAND_LINE_HPP
 #define COMMAND_LINE_HPP
 
+#include <array>
 #include <cstdint>
 #include <string>
 #include <string_view>
@@ -11,7 +12,10 @@
  * CommandLineOption
  * Identifies each supported command-line option
  */
-enum class CommandLineOption {Port, SourcePort, DestinationPort, Tcp, Icmp, Tftp, Packets, All, Unknown};
+enum class CommandLineOption {
+    Port, SourcePort, DestinationPort,
+    Ip, SourceIp, DestinationIp,
+    Tcp, Icmp, Tftp, Packets, All, Unknown};
 
 
 /**
@@ -67,6 +71,18 @@ struct CommandLineOptions {
     // Optional destination-port filter
     bool hasDestinationPortFilter = false;
     std::uint16_t destinationPort = 0;
+
+    // Optional source-or-destination IPv4 address filter
+    bool hasIpFilter = false;
+    std::array<std::uint8_t, 4> ipAddress{};
+
+    // Optional source IPv4 address filter
+    bool hasSourceIpFilter = false;
+    std::array<std::uint8_t, 4> sourceIpAddress{};
+
+    // Optional destination IPv4 address filter
+    bool hasDestinationIpFilter = false;
+    std::array<std::uint8_t, 4> destinationIpAddress{};
 };
 
 
@@ -75,6 +91,13 @@ struct CommandLineOptions {
  * Returns the name and usage syntax for a supported command-line option
  */
 const CommandLineOptionInfo& getCommandLineOptionInfo(CommandLineOption option);
+
+
+/**
+ * parseIpv4Address()
+ * Converts dotted-decimal IPv4 text into four address bytes
+ */
+bool parseIpv4Address(const std::string& address, std::array<std::uint8_t, 4>& parsedAddress);
 
 
 /**

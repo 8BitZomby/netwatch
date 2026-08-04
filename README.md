@@ -18,6 +18,9 @@ Available flags:
 - `--port <1-65535>` - filter packets where either the source or destination port matches the specified port
 - `--src-port <1-65535>` - filter packets where the source port matches the specified port
 - `--dst-port <1-65535>` - filter packets where the destination port matches the specified port
+- `--ip <IPv4-address>` - filter packets where either the source or destination IPv4 address matches
+- `--src-ip <IPv4-address>` - filter packets where the source IPv4 address matches
+- `--dst-ip <IPv4-address>` - filter packets where the destination IPv4 address matches
 
 Multiple specific flags can be combined. For example:
 
