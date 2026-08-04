@@ -11,7 +11,7 @@
  * CommandLineOption
  * Identifies each supported command-line option
  */
-enum class CommandLineOption {Port, Tcp, Icmp, Tftp, Packets, All, Unknown};
+enum class CommandLineOption {Port, SourcePort, DestinationPort, Tcp, Icmp, Tftp, Packets, All, Unknown};
 
 
 /**
@@ -59,6 +59,14 @@ struct CommandLineOptions {
     // Optional transport-layer port filter
     bool hasPortFilter = false;
     std::uint16_t port = 0;
+
+    // Optional source-port filter
+    bool hasSourcePortFilter = false;
+    std::uint16_t sourcePort = 0;
+
+    // Optional destination-port filter
+    bool hasDestinationPortFilter = false;
+    std::uint16_t destinationPort = 0;
 };
 
 

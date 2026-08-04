@@ -16,6 +16,8 @@ Available flags:
 - `--packets` - print detailed information for every decoded packet
 - `--all` - print all detailed output sections
 - `--port <1-65535>` - filter packets where either the source or destination port matches the specified port
+- `--src-port <1-65535>` - filter packets where the source port matches the specified port
+- `--dst-port <1-65535>` - filter packets where the destination port matches the specified port
 
 Multiple specific flags can be combined. For example:
 

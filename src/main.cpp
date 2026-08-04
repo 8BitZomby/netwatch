@@ -7,7 +7,8 @@
 
 int main(int argc, char* argv[]) {
     if(argc < 2) {
-        std::cerr << "Usage: netwatch <capture.pcap> [--tcp] [--icmp] [--tftp] [--packets] [--all]\n";
+        std::cerr << "Usage: netwatch <capture.pcap> [--tcp] [--icmp] [--tftp] [--packets] [--all]"
+                << "[--port <1-65535>] [--src-port <1-65535] [--dst-port <1-65535>]\n";
         return 1;
     }
 

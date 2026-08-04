@@ -11,6 +11,8 @@
  */
 const CommandLineOptionInfo& getCommandLineOptionInfo(CommandLineOption option) {
     static const CommandLineOptionInfo portOption = {"--port", "--port <1-65535>"};
+    static const CommandLineOptionInfo sourcePortOption = {"--src-port", "--src-port <1-65535>"};
+    static const CommandLineOptionInfo destinationPortOption = {"--dst-port", "--dst-port <1-65535>"};
     static const CommandLineOptionInfo tcpOption = {"--tcp", "--tcp"};
     static const CommandLineOptionInfo icmpOption = {"--icmp", "--icmp"};
     static const CommandLineOptionInfo tftpOption = {"--tftp", "--tftp"};
@@ -20,6 +22,8 @@ const CommandLineOptionInfo& getCommandLineOptionInfo(CommandLineOption option) 
 
     switch(option) {
         case CommandLineOption::Port: return portOption;
+        case CommandLineOption::SourcePort: return sourcePortOption;
+        case CommandLineOption::DestinationPort: return destinationPortOption;
         case CommandLineOption::Tcp: return tcpOption;
         case CommandLineOption::Icmp: return icmpOption;
         case CommandLineOption::Tftp: return tftpOption;
@@ -52,22 +56,27 @@ CommandLineOptions parseCommandLine(int argc, char* argv[]) {
         if(argument == "--tcp") {
             options.showTcp = true;
         }
+
         // ICMP flag
         else if(argument == "--icmp") {
             options.showIcmp = true;
         }
+
         // TFTP flag
         else if(argument == "--tftp") {
             options.showTftp = true;
         }
+
         // Packets flag
         else if(argument == "--packets") {
             options.showPackets = true;
         }
+
         // All flag
         else if(argument == "--all") {
             options.showAll = true;
         }
+
         // Port flag
         else if(argument == "--port") {
             // --port must be followed by a value
@@ -98,6 +107,68 @@ CommandLineOptions parseCommandLine(int argc, char* argv[]) {
                 options.errors.push_back({"Invalid port: " + portArgument, CommandLineOption::Port});
             }
         }
+
+        // Source Port Flag
+        else if(argument == "--src-port") {
+            // --src-port must be followed by a value
+            if(i + 1 >= argc) {
+                options.errors.push_back({"Missing value for --src-port", CommandLineOption::SourcePort});
+                continue;
+            }
+            // Move to the argument immediately following --src-port
+            std::string portArgument = argv[++i];
+
+            try {
+                // Convert the supplied source-port value from text to an integer
+                int portValue = std::stoi(portArgument);
+
+                // Port numbers must be in the valid 1-65535 range
+                if(portValue < 1 || portValue > 65535) {
+                    options.errors.push_back({"Source port must be between 1 and 65535", CommandLineOption::SourcePort});
+                }
+                else {
+                    // Store the validated source-port filter
+                    options.hasSourcePortFilter = true;
+                    options.sourcePort = static_cast<std::uint16_t>(portValue);
+                }
+            }
+            catch(const std::exception&) {
+                // std::stoi throws when the supplied value is not a valid integer
+                options.errors.push_back({"Invalid source port: " + portArgument, CommandLineOption::SourcePort});
+            }
+        }
+
+        // Destination Port Flag
+        else if(argument == "--dst-port") {
+            // --dst-port must be followed by a value
+            if(i + 1 >= argc) {
+                options.errors.push_back({"Missing value for --dst-port", CommandLineOption::DestinationPort});
+                continue;
+            }
+
+            // Move to the argument immediately following --dst-port
+            std::string portArgument = argv[++i];
+
+            try {
+                // Convert the supplied destination-port value from text to an integer
+                int portValue = std::stoi(portArgument);
+
+                // Port numbers must be in the valid 1-65535 range
+                if(portValue < 1 || portValue > 65535) {
+                    options.errors.push_back({"Destination port must be between 1 and 65535", CommandLineOption::DestinationPort});
+                }
+                else {
+                    // Store the validated destination-port filter
+                    options.hasDestinationPortFilter = true;
+                    options.destinationPort = static_cast<std::uint16_t>(portValue);
+                }
+            }
+            catch(const std::exception&) {
+                // std::stoi throws when the supplied value is not a valid integer
+                options.errors.push_back({"Invalid destination port: " + portArgument, CommandLineOption::DestinationPort});
+            }
+        }
+
         // Unknown flag
         else {
             // Store unrecognized options so they can be reported together
