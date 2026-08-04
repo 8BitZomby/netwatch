@@ -1,6 +1,8 @@
 #ifndef COMMAND_LINE_HPP
 #define COMMAND_LINE_HPP
 
+#include "AnalysisOptions.hpp"
+
 #include <array>
 #include <cstdint>
 #include <string>
@@ -53,36 +55,15 @@ struct CommandLineOptions {
     // Unknown CLI options
     std::vector<std::string> unknownOptions;
 
+    // Analysis setting produced from command-line filter options
+    AnalysisOptions analysisOptions;
+
     // Command line flags
     bool showTcp = false;
     bool showIcmp = false;
     bool showTftp = false;
     bool showPackets = false;
     bool showAll = false;
-
-    // Optional transport-layer port filter
-    bool hasPortFilter = false;
-    std::uint16_t port = 0;
-
-    // Optional source-port filter
-    bool hasSourcePortFilter = false;
-    std::uint16_t sourcePort = 0;
-
-    // Optional destination-port filter
-    bool hasDestinationPortFilter = false;
-    std::uint16_t destinationPort = 0;
-
-    // Optional source-or-destination IPv4 address filter
-    bool hasIpFilter = false;
-    std::array<std::uint8_t, 4> ipAddress{};
-
-    // Optional source IPv4 address filter
-    bool hasSourceIpFilter = false;
-    std::array<std::uint8_t, 4> sourceIpAddress{};
-
-    // Optional destination IPv4 address filter
-    bool hasDestinationIpFilter = false;
-    std::array<std::uint8_t, 4> destinationIpAddress{};
 };
 
 

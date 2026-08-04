@@ -1,13 +1,13 @@
 #include "PacketFilter.hpp"
-#include "CommandLine.hpp"
+#include "AnalysisOptions.hpp"
 #include "PacketParser.hpp"
 
 
 /**
  * packetMatchesFilters()
- * Returns true when a decoded packet satisfies the active command-line filters
+ * Returns true when a decoded packet satisfies the active analysis filters
  */
-bool packetMatchesFilters(const PacketInfo& packetInfo, const CommandLineOptions& options) {
+bool packetMatchesFilters(const PacketInfo& packetInfo, const AnalysisOptions& options) {
     // Match either source or destination port when a general port filter is active
     if(options.hasPortFilter && packetInfo.sourcePort != options.port && packetInfo.destinationPort != options.port) {
         return false;

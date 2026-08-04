@@ -23,8 +23,11 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
+    // Retain packet details only when packet-level output was requested
+    options.analysisOptions.retainPackets = options.showPackets || options.showAll;
+
     // Analyze the capture file and collect all protocol statistics
-    CaptureAnalysisResult analysisResult = analyzeCapture(options.capturePath, options);
+    CaptureAnalysisResult analysisResult = analyzeCapture(options.capturePath, options.analysisOptions);
 
     // Stop if the capture could not be analyzed
     if(!analysisResult.success) {

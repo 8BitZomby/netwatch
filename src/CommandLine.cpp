@@ -149,8 +149,8 @@ CommandLineOptions parseCommandLine(int argc, char* argv[]) {
                 }
                 else {
                     // Store the validated port filter
-                    options.hasPortFilter = true;
-                    options.port = static_cast<std::uint16_t>(portValue);
+                    options.analysisOptions.hasPortFilter = true;
+                    options.analysisOptions.port = static_cast<std::uint16_t>(portValue);
                 }
             }
             catch (const std::exception&) {
@@ -179,8 +179,8 @@ CommandLineOptions parseCommandLine(int argc, char* argv[]) {
                 }
                 else {
                     // Store the validated source-port filter
-                    options.hasSourcePortFilter = true;
-                    options.sourcePort = static_cast<std::uint16_t>(portValue);
+                    options.analysisOptions.hasSourcePortFilter = true;
+                    options.analysisOptions.sourcePort = static_cast<std::uint16_t>(portValue);
                 }
             }
             catch(const std::exception&) {
@@ -210,8 +210,8 @@ CommandLineOptions parseCommandLine(int argc, char* argv[]) {
                 }
                 else {
                     // Store the validated destination-port filter
-                    options.hasDestinationPortFilter = true;
-                    options.destinationPort = static_cast<std::uint16_t>(portValue);
+                    options.analysisOptions.hasDestinationPortFilter = true;
+                    options.analysisOptions.destinationPort = static_cast<std::uint16_t>(portValue);
                 }
             }
             catch(const std::exception&) {
@@ -230,11 +230,11 @@ CommandLineOptions parseCommandLine(int argc, char* argv[]) {
             // Move to the argument immediately following --ip
             std::string ipText = argv[++i];
             // Validate and convert the IPv4 address into four bytes
-            if(!parseIpv4Address(ipText, options.ipAddress)) {
+            if(!parseIpv4Address(ipText, options.analysisOptions.ipAddress)) {
                 options.errors.push_back({"Invalid IPv4 address: " + ipText, CommandLineOption::Ip});
                 continue;
             }
-            options.hasIpFilter = true;
+            options.analysisOptions.hasIpFilter = true;
         }
 
         // Source IP Flag
@@ -247,11 +247,11 @@ CommandLineOptions parseCommandLine(int argc, char* argv[]) {
             // Move to the argument immediately following --src-ip
             std::string ipText = argv[++i];
             // Validate and convert the IPv4 address into four bytes
-            if(!parseIpv4Address(ipText, options.sourceIpAddress)) {
+            if(!parseIpv4Address(ipText, options.analysisOptions.sourceIpAddress)) {
                 options.errors.push_back({"Invalid IPv4 address: " + ipText, CommandLineOption::SourceIp});
                 continue;
             }
-            options.hasSourceIpFilter = true;
+            options.analysisOptions.hasSourceIpFilter = true;
         }
 
         // Destination IP Flag
@@ -264,11 +264,11 @@ CommandLineOptions parseCommandLine(int argc, char* argv[]) {
             // Move to the argument immediately following --dst-ip
             std::string ipText = argv[++i];
             // Validate and convert the IPv4 address into four bytes
-            if(!parseIpv4Address(ipText, options.destinationIpAddress)) {
+            if(!parseIpv4Address(ipText, options.analysisOptions.destinationIpAddress)) {
                 options.errors.push_back({"Invalid IPv4 address: " + ipText, CommandLineOption::DestinationIp});
                 continue;
             }
-            options.hasDestinationIpFilter = true;
+            options.analysisOptions.hasDestinationIpFilter = true;
         }
 
         // Unknown flag

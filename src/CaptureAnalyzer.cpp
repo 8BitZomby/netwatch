@@ -1,5 +1,5 @@
+#include "AnalysisOptions.hpp"
 #include "CaptureAnalyzer.hpp"
-#include "CommandLine.hpp"
 #include "IcmpAnalyzer.hpp"
 #include "PacketFilter.hpp"
 #include "TcpFlowAnalyzer.hpp"
@@ -15,7 +15,7 @@
  * analyzeCapture()
  * Reads a packet-capture file and returns the complete analysis result
  */
-CaptureAnalysisResult analyzeCapture(const std::string& capturePath, const CommandLineOptions& options) {
+CaptureAnalysisResult analyzeCapture(const std::string& capturePath, const AnalysisOptions& options) {
 
     CaptureAnalysisResult analysisResult;
 
@@ -71,7 +71,7 @@ CaptureAnalysisResult analyzeCapture(const std::string& capturePath, const Comma
         }
 
         // Retain decoded packet details only when packet-level output was requested
-        if(options.showPackets || options.showAll) {
+        if(options.retainPackets) {
             analysisResult.packets.push_back(packetInfo);
         }
 
