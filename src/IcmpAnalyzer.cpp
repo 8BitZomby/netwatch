@@ -1,6 +1,51 @@
 #include "IcmpAnalyzer.hpp"
 
-#include <iostream>
+
+/**
+ * getIcmpCodeDescription()
+ * Returns a human-readable description for an ICMP code
+ */
+const char* getIcmpCodeDescription(std::uint8_t type, std::uint8_t code) {
+    //  Echo Request & Echo Reply use code 0
+    if(type == 0 || type == 8) {
+        return code == 0 ? "No code" : "Unknown";
+    }
+    // Destination Unreachable codes describe why delivery failed
+    if(type == 3) {
+        switch(code) {
+            case 0: return "Network unreachable";
+            case 1: return "Host unreachable";
+            case 2: return "Protocol unreachable";
+            case 3: return "Port unreachable";
+            case 4: return "Fragmentation required";
+            case 5: return "Source route failed";
+            case 9: return "Network administratively prohibited";
+            case 10: return "Host administratively prohibited";
+            case 13: return "Communication administratively prohibited";
+            default: return "Unknown";
+        }
+    }
+    // Redirect codes identify the preferred route type
+    if(type == 5) {
+        switch(code) {
+            case 0: return "Redirect for network";
+            case 1: return "Redirect for host";
+            case 2: return "Redirect for service and network";
+            case 3: return "Redirect for service and host";
+            default: return "Unknown";
+        }
+    }
+    // Time Exceeded codes distinguish routing and reassembly failures
+    if(type == 11) {
+        switch(code) {
+            case 0: return "TTL expired in transit";
+            case 1: return "Fragment reassembly time exceeded";
+            default: return "Unknown";
+        }
+    }
+    return "Unknown";
+}
+
 
 /**
  * updateIcmpEchoTracking
@@ -47,6 +92,11 @@ void updateIcmpEchoTracking(IcmpEchoExchangeMap& echoExchanges, const PacketInfo
         exchange.replySeen = true;
         exchange.replyTimestampSeconds = timestampSeconds;
     }
+    // Once both sides of the exchange have been observed, calculate its RTT
+    if(exchange.requestSeen && exchange.replySeen) {
+        exchange.roundTripTimeAvailable = true;
+        exchange.roundTripTimeMilliseconds = (exchange.replyTimestampSeconds - exchange.requestTimestampSeconds) * 1000.0;
+    }
 }
 
 
@@ -79,9 +129,9 @@ IcmpEchoSummary calculateIcmpEchoSummary(const IcmpEchoExchangeMap& echoExchange
         }
         // RTT can only be calculated when both sides of the exchange
         // were captured and both timestamps are available
-        if(exchange.requestSeen && exchange.replySeen) {
-            double roundTripTimeMilliseconds = (exchange.replyTimestampSeconds -
-                                            exchange.requestTimestampSeconds) * 1000;
+        if(exchange.roundTripTimeAvailable) {
+
+            double roundTripTimeMilliseconds = exchange.roundTripTimeMilliseconds;
             // Count complete exchanges
             ++summary.completeExchangeCount;
             // Aggregate total time
@@ -120,76 +170,4 @@ IcmpEchoSummary calculateIcmpEchoSummary(const IcmpEchoExchangeMap& echoExchange
                 static_cast<double>(summary.completeExchangeCount);
     }
     return summary;
-}
-
-
-/**
- * printIcmpEchoSummaries()
- * Prints one summary for each tracked Echo Request/Reply pair.
- * Round-trip time is only calculated when both packets were observed.
- */
-void printIcmpEchoSummaries(const IcmpEchoExchangeMap& echoExchanges, const IcmpEchoSummary& summary) {
-
-    // Print each tracked ICMP Echo exchange using the stored exchange data
-    for(const auto& [echoKey, exchange] : echoExchanges) {
-        // Blank line for spacing
-        std::cout << "\n";
-        // Print the host that originally sent the Echo Request
-        std::cout << "Requester: "
-                << static_cast<int>(echoKey.requesterIp[0]) << "."
-                << static_cast<int>(echoKey.requesterIp[1]) << "."
-                << static_cast<int>(echoKey.requesterIp[2]) << "."
-                << static_cast<int>(echoKey.requesterIp[3]) << "\n";
-        // Print the host expected to return the Echo Reply
-        std::cout << "Responder: "
-                << static_cast<int>(echoKey.responderIp[0]) << "."
-                << static_cast<int>(echoKey.responderIp[1]) << "."
-                << static_cast<int>(echoKey.responderIp[2]) << "."
-                << static_cast<int>(echoKey.responderIp[3]) << "\n";
-        // Print the fields that identify this individual Echo exchange
-        std::cout << "Identifier: " << echoKey.identifier << "\n"
-                << "Sequence number: " << echoKey.sequenceNumber << "\n";
-        // Report whether each side of the exchange appeared in the capture
-        std::cout << "Request observed: " << (exchange.requestSeen ? "yes" : "no") << "\n"
-                << "Reply observed: " << (exchange.replySeen ? "yes" : "no") << "\n";
-
-        // Round-trip time is valid only when both timestamps are available
-        if(exchange.requestSeen && exchange.replySeen) {
-            double roundTripTimeMilliseconds = (exchange.replyTimestampSeconds - 
-                                            exchange.requestTimestampSeconds) * 1000.0;
-            std::cout << "Round-trip time: " << roundTripTimeMilliseconds << " ms\n";
-        }
-        else {
-            std::cout << "Round-trip time: unavailable\n";
-        }
-    }
-
-    // Print the aggregate request/reply counts after the per-exchange details
-    std::cout << "\nICMP Echo summary\n"
-            << "  Requests observed: " << summary.requestCount << "\n"
-            << "  Replies observed: " << summary.replyCount << "\n"
-            << "  Missing replies: " << summary.missingReplyCount << "\n";
-
-    // Packet loss is based on requests that did not receive a matching reply
-    if(summary.requestCount > 0) {
-        std::cout << "  Packet loss: " << summary.packetLossPercentage << "%\n";
-    }
-    else {
-        std::cout << "  Packet loss: unavailable\n";
-    }
-
-    // RTT statistics require at least one complete request/reply exchange
-    if(summary.rttStatisticsAvailable) {
-        std::cout << "  Minimum RTT: " << summary.minimumRoundTripTimeMilliseconds << " ms\n"
-                << "  Maximum RTT: " << summary.maximumRoundTripTimeMilliseconds << " ms\n"
-                << "  Average RTT: " << summary.averageRoundTripTimeMilliseconds << " ms\n";
-    }
-    else {
-        std::cout << "  Minimum RTT: unavailable\n"
-                << "  Maximum RTT: unavailable\n"
-                << "  Average RTT: unavailable\n";
-    }
-
-    // Final newline
-    std::cout << "\n";
 }

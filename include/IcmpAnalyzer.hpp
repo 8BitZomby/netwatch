@@ -57,6 +57,10 @@ struct IcmpEchoExchange {
     double requestTimestampSeconds = 0.0;
     // Capture time of the matching Echo Reply, in seconds
     double replyTimestampSeconds = 0.0;
+    // True when both request and reply timestamps are available
+    bool roundTripTimeAvailable = false;
+    // Round-trip time for this exchange, in milliseconds
+    double roundTripTimeMilliseconds = 0.0;
 };
 
 /**
@@ -96,8 +100,15 @@ using IcmpEchoExchangeMap = std::map<IcmpEchoKey, IcmpEchoExchange>;
 
 
 /**
+ * getIcmpCodeDescription()
+ * Returns a human-readable description for an ICMP code
+ */
+const char* getIcmpCodeDescription(std::uint8_t type, std::uint8_t code);
+
+
+/**
  * Updates ICMP Echo tracking with one parsed packet
- * Echo Requests create or update an exchange using the packet't normal
+ * Echo Requests create or update an exchange using the packet's normal
  * source-to-destination direction. Echo Replies reverse that direction
  * when constructing the key so they match the original request
  */
@@ -111,12 +122,6 @@ void updateIcmpEchoTracking(IcmpEchoExchangeMap& echoExchanges, const PacketInfo
  * statistics to be used by the CLI, GUI, or export function
  */
 IcmpEchoSummary calculateIcmpEchoSummary(const IcmpEchoExchangeMap& echoExchanges);
-
-
-/**
- * Prints tracked ICMP Echo exchanges using an already calculated summary
- */
-void printIcmpEchoSummaries(const IcmpEchoExchangeMap& echoExchanges, const IcmpEchoSummary& summary);
 
 
 #endif

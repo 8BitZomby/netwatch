@@ -3,9 +3,10 @@
 
 #include "CaptureAnalysis.hpp"
 #include "CommandLine.hpp"
+#include "IcmpAnalyzer.hpp"
 #include "PacketParser.hpp"
-
-#include <cstdint>
+#include "TcpFlowAnalyzer.hpp"
+#include "TftpAnalyzer.hpp"
 
 
 /**
@@ -15,13 +16,32 @@
 void printRequestedOutput(const CaptureAnalysisResult& analysisResult, const CommandLineOptions& options);
 
 
+/**
+ * printTcpEndpoint()
+ * Prints one TCP endpoint in IPv4-address-and-port format
+ */
+void printTcpEndpoint(const TcpEndpoint& endpoint);
+
 
 /**
- * getIcmpCodeDescription()
- * Returns a human-readable description for an ICMP code
+ * printTcpFlowSummaries()
+ * Prints a summary for every prepared TCP flow
  */
-const char* getIcmpCodeDescription(std::uint8_t type, std::uint8_t code);
+void printTcpFlowSummaries(const std::vector<TcpFlowSummary>& summaries);
 
+
+/**
+ * printTftpTransferSummaries()
+ * Prints a summary for every tracked TFTP transfer
+ */
+void printTftpTransferSummaries(const TftpTransferMap& transfers);
+
+
+/**
+ * printIcmpEchoSummaries()
+ * Prints tracked ICMP Echo exchanges using an already calculated summary
+ */
+void printIcmpEchoSummaries(const IcmpEchoExchangeMap &echoExchanges, const IcmpEchoSummary &summary);
 
 
 /**
