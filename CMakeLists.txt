@@ -21,6 +21,7 @@ add_executable(netwatch
     src/CommandLine.cpp
     src/IcmpAnalyzer.cpp
     src/main.cpp
+    src/NetworkUtils.cpp
     src/Output.cpp
     src/PacketFilter.cpp
     src/PacketParser.cpp

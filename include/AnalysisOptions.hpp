@@ -1,7 +1,8 @@
 #ifndef ANALYSIS_OPTIONS_HPP
 #define ANALYSIS_OPTIONS_HPP
 
-#include <array>
+#include "NetworkTypes.hpp"
+
 #include <cstdint>
 
 
@@ -29,15 +30,15 @@ struct AnalysisOptions {
 
     // Optional source-or-destination IPv4 address filter
     bool hasIpFilter = false;
-    std::array<std::uint8_t, 4> ipAddress{};
+    Ipv4Address ipAddress{};
 
     // Optional source IPv4 address filter
     bool hasSourceIpFilter = false;
-    std::array<std::uint8_t, 4> sourceIpAddress{};
+    Ipv4Address sourceIpAddress{};
 
     // Optional destination IPv4 address filter
     bool hasDestinationIpFilter = false;
-    std::array<std::uint8_t, 4> destinationIpAddress{};
+    Ipv4Address destinationIpAddress{};
 };
 
 

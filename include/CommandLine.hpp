@@ -3,8 +3,6 @@
 
 #include "AnalysisOptions.hpp"
 
-#include <array>
-#include <cstdint>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -72,13 +70,6 @@ struct CommandLineOptions {
  * Returns the name and usage syntax for a supported command-line option
  */
 const CommandLineOptionInfo& getCommandLineOptionInfo(CommandLineOption option);
-
-
-/**
- * parseIpv4Address()
- * Converts dotted-decimal IPv4 text into four address bytes
- */
-bool parseIpv4Address(const std::string& address, std::array<std::uint8_t, 4>& parsedAddress);
 
 
 /**

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "NetworkTypes.hpp"
+
 #include <vector>
 #include <array>
 #include <string>
@@ -159,8 +161,8 @@ struct PacketInfo {
     std::size_t ipHeaderLength = 0;
     std::uint16_t ipTotalLength = 0;
     std::uint8_t ipProtocol = 0;
-    std::array<std::uint8_t, 4> sourceIp{};
-    std::array<std::uint8_t, 4> destinationIp{};
+    Ipv4Address sourceIp{};
+    Ipv4Address destinationIp{};
 
     // Transport ports
     std::uint16_t sourcePort = 0;
