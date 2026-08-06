@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 3.20)
 
 project(netwatch LANGUAGES CXX)
 
+include(CTest)
+
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -37,3 +39,18 @@ target_include_directories(netwatch PRIVATE
 target_link_libraries(netwatch PRIVATE
     ${PCAP_LIBRARY}
 )
+
+# Build and register unit tests when testing is enabled
+if(BUILD_TESTING)
+    add_executable(netwatch_tests
+        src/PacketParser.cpp
+        src/TcpFlowAnalyzer.cpp
+        tests/TcpFlowAnalyzerTests.cpp
+    )
+
+    target_include_directories(netwatch_tests PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+    )
+
+    add_test(NAME netwatch_tests COMMAND netwatch_tests)
+endif()
