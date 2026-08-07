@@ -47,7 +47,7 @@ std::uint32_t addChecksumWord(std::uint32_t sum, uint16_t word) {
 std::uint32_t addChecksumBytes(std::uint32_t sum, const u_char* data, std::size_t length) {
     // Convert to 16-bit words and add to checksum
     // if odd length, final if catches final byte
-    for(std::size_t i = 0; i+1 < length; i+=2) {
+    for(std::size_t i = 0; i + 1 < length; i+=2) {
         std::uint16_t word = readUint16BigEndian(data, i);
         sum = addChecksumWord(sum, word);
     }
@@ -147,11 +147,11 @@ bool isNullTerminatedWithinPacket(const u_char* data, std::size_t capturedLength
 /**
  * parseICMP
  */
-void parseICMP(const u_char* data, std::size_t capturedLength, std::size_t transportOffset, PacketInfo& packetInfo) {
+bool parseICMP(const u_char* data, std::size_t capturedLength, std::size_t transportOffset, PacketInfo& packetInfo) {
     // Ensure the captured packet contains at least the minimum 8-byte ICMP header.
     if(capturedLength < transportOffset + 8) {
         std::cerr << "Truncated ICMP header\n";
-        return;
+        return false;
     }
     // Read the ICMP message type from byte 0 of the ICMP header
     packetInfo.icmpType = data[transportOffset];
@@ -169,7 +169,7 @@ void parseICMP(const u_char* data, std::size_t capturedLength, std::size_t trans
     // Ensure the IPv4 total length can contain its own header
     if(packetInfo.ipTotalLength < packetInfo.ipHeaderLength) {
         std::cerr << "Invalid IPv4 total length\n";
-        return;
+        return false;
     }
     // ICMP occupies the complete IPv4 payload
     packetInfo.icmpLength = packetInfo.ipTotalLength - packetInfo.ipHeaderLength;
@@ -177,7 +177,7 @@ void parseICMP(const u_char* data, std::size_t capturedLength, std::size_t trans
     // Ensure ICMP message contains the complete fixed 8-byte header
     if(packetInfo.icmpLength < 8) {
         std::cerr << "Invalid ICMP length\n";
-        return;
+        return false;
     }
 
     // The fixed ICMP header occupies the first 8 bytes
@@ -189,11 +189,14 @@ void parseICMP(const u_char* data, std::size_t capturedLength, std::size_t trans
     // Ensure the complete ICMP message is present in the capture
     if(capturedLength < transportOffset + packetInfo.icmpLength) {
         std::cerr << "Truncated ICMP message\n";
-        return;
+        return false;
     }
     // Validate the checksum across the ICMP header and payload
     packetInfo.icmpChecksumValid = validateICMPChecksum(data, transportOffset, packetInfo.icmpLength);
     packetInfo.icmpChecksumChecked = true;
+
+    // ICMP header parsed successfully
+    return true;
 }
 
 /**
@@ -251,7 +254,7 @@ bool parseTCPOptions(const u_char* data, std::size_t optionsOffset, std::size_t 
         // Kind 3: Window Scale
         if(optionKind == 3) {
             if(currentLength != 3) {
-                std::cerr << "Invalud TCP Window Scale option length\n";
+                std::cerr << "Invalid TCP Window Scale option length\n";
                 return false;
             }
             packetInfo.tcpWindowScale = data[currentOffset + 2];
@@ -289,17 +292,19 @@ bool parseTCPOptions(const u_char* data, std::size_t optionsOffset, std::size_t 
         // Move to the beginning of the next option
         currentOffset += currentLength;
     }
+    
+    // TCP options parsed successfully
     return true;
 }
 
 /**
  * parseTCP
  */
-void parseTCP(const u_char* data, std::size_t capturedLength, std::size_t transportOffset, PacketInfo& packetInfo) {
+bool parseTCP(const u_char* data, std::size_t capturedLength, std::size_t transportOffset, PacketInfo& packetInfo) {
     // Ensure the captured packet contains at least the minimum 20-byte TCP header.
     if(capturedLength < transportOffset + 20) {
         std::cerr << "Truncated TCP header\n";
-        return;
+        return false;
     }
     // Read and store TCP source port, bytes 0-1 of TCP header
     packetInfo.sourcePort = readUint16BigEndian(data, transportOffset);
@@ -319,7 +324,7 @@ void parseTCP(const u_char* data, std::size_t capturedLength, std::size_t transp
     // Ensure TCP header is at least the minimum length of 5 32 bit words
     if(tcpDataOffset < 5) {
         std::cerr << "Invalid TCP header length\n";
-        return;
+        return false;
     }
     // Store the parsed TCP data offset in packet information
     packetInfo.tcpDataOffset = tcpDataOffset;
@@ -330,7 +335,7 @@ void parseTCP(const u_char* data, std::size_t capturedLength, std::size_t transp
     // Ensure the captured packet contains the complete TCP header described by tcpDataOffset
     if(capturedLength < transportOffset + packetInfo.tcpHeaderLength) {
         std::cerr << "Truncated TCP header\n";
-        return;
+        return false;
     }
 
     // Calculate and store the TCP options length
@@ -343,7 +348,7 @@ void parseTCP(const u_char* data, std::size_t capturedLength, std::size_t transp
 
     // Validate TCP options when they are present
     if(packetInfo.tcpOptionsLength > 0 && !parseTCPOptions(data, packetInfo.tcpOptionsOffset, packetInfo.tcpOptionsLength, packetInfo)) {
-        return;
+        return false;
     }
 
     // Read and store TCP control flags, byte 13 of packet information
@@ -368,13 +373,15 @@ void parseTCP(const u_char* data, std::size_t capturedLength, std::size_t transp
     // Read and store TCP urgent pointer, bytes 18-19 of TCP header
     packetInfo.tcpUrgentPointer = readUint16BigEndian(data, transportOffset + 18);
 
-    // A zero IPv4 total length can appear in locally captured packets
-    // before segmentation/checksum offloading has finalized the packet
-    if(packetInfo.ipTotalLength == 0) { return; }
+    // Zero IPv4 total length can occur in locally captured TSO packets
+    if(packetInfo.ipTotalLength == 0) { 
+        return false; 
+    }
+
     // Ensure the IPv4 total length is large enough to contin its own header
     if(packetInfo.ipTotalLength < packetInfo.ipHeaderLength) {
         std::cerr << "Invalid IPv4 total length\n";
-        return;
+        return false;
     }
 
     // Calculate and store length of complete TCP segment
@@ -384,7 +391,7 @@ void parseTCP(const u_char* data, std::size_t capturedLength, std::size_t transp
     // Ensure the TCP length is not smaller than the TCP header length
     if(packetInfo.tcpLength < packetInfo.tcpHeaderLength) {
         std::cerr << "Invalid TCP segment length\n";
-        return;
+        return false;
     }
 
     // Calculate and store TCP payload length
@@ -399,22 +406,25 @@ void parseTCP(const u_char* data, std::size_t capturedLength, std::size_t transp
     //Ensure the complete TCP segment is present in the captured packet
     if(capturedLength < transportOffset + packetInfo.tcpLength) {
         std::cerr << "Truncated TCP segment\n";
-        return;
+        return false;
     }
     // Validate and store TCP checksum result
     packetInfo.tcpChecksumValid = validateTCPChecksum(data, transportOffset, packetInfo);
     // Update checksum checked flag
     packetInfo.tcpChecksumChecked = true;
+
+    // TCP header parsed successfully
+    return true;
 }
 
 /**
  * parseTFTP
  */
-void parseTFTP(const u_char* data, std::size_t capturedLength, std::size_t payloadOffset, PacketInfo& packetInfo) {
+bool parseTFTP(const u_char* data, std::size_t capturedLength, std::size_t payloadOffset, PacketInfo& packetInfo) {
     // Ensure the captured packet contains the 2-byte TFTP opcode.
     if(capturedLength < payloadOffset + 2) {
         std::cerr << "Truncated TFTP opcode\n";
-        return;
+        return false;
     }
 
     // Read and store parsed TFTP opcode
@@ -429,7 +439,7 @@ void parseTFTP(const u_char* data, std::size_t capturedLength, std::size_t paylo
         // Ensure the filename contains a null terminator before the captured packet ends.
         if(!isNullTerminatedWithinPacket(data, capturedLength, filename)) {
             std::cerr << "Invalid TFTP filename\n";
-            return;
+            return false;
         }
         // Store the parsed TFTP filename in the packet information
         packetInfo.tftpFilename = filename;
@@ -447,7 +457,11 @@ void parseTFTP(const u_char* data, std::size_t capturedLength, std::size_t paylo
         // Store the parsed TFTP mode in the packet information
         packetInfo.tftpMode = mode;
     }
+
+    // TFTP header parsed successfully
+    return true;
 }
+
 
 /**
  * parseUPD -
@@ -458,11 +472,11 @@ void parseTFTP(const u_char* data, std::size_t capturedLength, std::size_t paylo
  * byte 4-5     length              ->      transportOffset + 4, transportOffset + 5
  * byte 6-7     checksum            ->      transportOffset + 6, transportOffset + 7
  */ 
-void parseUDP(const u_char* data, std::size_t capturedLength, std::size_t transportOffset, PacketInfo& packetInfo) {
+bool parseUDP(const u_char* data, std::size_t capturedLength, std::size_t transportOffset, PacketInfo& packetInfo) {
     // Ensure the captured packet contains the complete 8-byte UDP header.
     if(capturedLength < transportOffset + 8) {
         std::cerr << "Truncated UDP header\n";
-        return;
+        return false;
     }
 
     // Read and store the 2-byte UDP source port as one 16-bit big-endian value.
@@ -480,12 +494,12 @@ void parseUDP(const u_char* data, std::size_t capturedLength, std::size_t transp
     // Ensure UDP datagram at least 8 bytes long
     if(packetInfo.udpLength < 8) {
         std::cerr << "Invalid UDP length\n";
-        return;
+        return false;
     }
     // Ensure the complete UDP datagram is present in the captured packet.
     if(capturedLength < transportOffset + packetInfo.udpLength) {
         std::cerr << "Truncated UDP datagram\n";
-        return;
+        return false;
     }
 
     // Read and store payload starting byte (udp header always 8 bytes)
@@ -498,18 +512,21 @@ void parseUDP(const u_char* data, std::size_t capturedLength, std::size_t transp
     if(packetInfo.sourcePort == TFTPPort || packetInfo.destinationPort == TFTPPort) {
         // Store that packet was identified as TFFTP
         packetInfo.isTFTP = true;
-        parseTFTP(data, capturedLength, packetInfo.udpPayloadOffset, packetInfo);   
+        return parseTFTP(data, capturedLength, packetInfo.udpPayloadOffset, packetInfo);   
     }
+
+    // UDP header parsed successfully
+    return true;
 }
 
 /**
  * 
  */
-void parseIPv4(const u_char* data, std::size_t capturedLength, std::size_t ipOffset, PacketInfo& packetInfo) {
+bool parseIPv4(const u_char* data, std::size_t capturedLength, std::size_t ipOffset, PacketInfo& packetInfo) {
     // Ensure the captured packet contains at least the minimum IPv4 header
     if(capturedLength < ipOffset + MinimumIPv4HeaderLength) {
         std::cerr << "Truncated IPv4 header\n";
-        return;
+        return false;
     }
 
     // Read and store parsed IPv4 version, upper 4 bits only
@@ -518,7 +535,7 @@ void parseIPv4(const u_char* data, std::size_t capturedLength, std::size_t ipOff
     // Ensure the packet contains an IPv4 header.
     if(packetInfo.ipVersion != 4) {
         std::cerr << "Invalid IPv4 version\n";
-        return;
+        return false;
     }
 
     // Read and store parsed IPv4 IHL, lower 4 bits only
@@ -532,7 +549,7 @@ void parseIPv4(const u_char* data, std::size_t capturedLength, std::size_t ipOff
     // Ensure the IPv4 header is at least the minimum length of 5 32-bit words.
     if(packetInfo.ihl < 5) {
         std::cerr << "Invalid IPv4 header length\n";
-        return;
+        return false;
     }
     
     // IHL value is measured in 32-bit words, not bytes. A 32-bit word is: 4 bytes
@@ -549,7 +566,7 @@ void parseIPv4(const u_char* data, std::size_t capturedLength, std::size_t ipOff
     // Ensure the captured packet contains the complete IPv4 header described by IHL.
     if(capturedLength < ipOffset + packetInfo.ipHeaderLength) {
         std::cerr << "Truncated IPv4 header\n";
-        return;
+        return false;
     }
 
     // Read and store IPv4 total length, bytes 2-3 of the IPv4 header
@@ -571,37 +588,55 @@ void parseIPv4(const u_char* data, std::size_t capturedLength, std::size_t ipOff
     // IPv4 header begins at data[14], protocol begins at an offset of 9
     packetInfo.ipProtocol = data[ipOffset + IPv4ProtocolOffset];
 
+    // Locally captured TCP packets may have a zero IPv4 Total Length before
+    // segmentation offload finalizes the header; derive it from the captured frame
+    if(packetInfo.ipProtocol == 6 && packetInfo.ipTotalLength == 0) {
+        // Derive the IPv4 length from the captured frame for locally captured TSO packets
+        std::size_t derivedIpTotalLength = capturedLength - ipOffset;
+        // IPv4 Total Length is a 16-bit field and cannot exceed 65535 bytes
+        if(derivedIpTotalLength > 65535) {
+            std::cerr << "Derived IPv4 total length exceeds maximum IPv4 size\n";
+            return false;
+        }
+        packetInfo.ipTotalLength = static_cast<std::uint16_t>(derivedIpTotalLength);
+        packetInfo.ipTotalLengthDerived = true;
+    }
+
     // Get transport protocol offset location
     std::size_t transportOffset = ipOffset + packetInfo.ipHeaderLength;
     
     // Determine protocol
     // TCP = 6
     if(packetInfo.ipProtocol == 6) {
-        parseTCP(data, capturedLength, transportOffset, packetInfo);
+        return parseTCP(data, capturedLength, transportOffset, packetInfo);
     }
     // UDP = 17
     else if(packetInfo.ipProtocol == 17) {
-        parseUDP(data, capturedLength, transportOffset, packetInfo);
+        return parseUDP(data, capturedLength, transportOffset, packetInfo);
     }
     // ICMP = 1
     else if(packetInfo.ipProtocol == 1) {
-        parseICMP(data, capturedLength, transportOffset, packetInfo);
+        return parseICMP(data, capturedLength, transportOffset, packetInfo);
     }
     else {
         std::cout << "Transport protocol: Unknown\n"
                 << "Unknown header starts at byte: "
                 << transportOffset << '\n';
     }
+
+    // IPv4 header parsed successfully
+    return true;
 }
 
 /**
  * parseEthernet
+ * Parses the Ethernet header and returns whether parsing suceeded
  */
-void parseEthernet(const u_char* data, std::size_t capturedLength, PacketInfo& packetInfo) {
+bool parseEthernet(const u_char* data, std::size_t capturedLength, PacketInfo& packetInfo) {
     // Ensure the captured packet contains the complete 14-byte Ethernet header.
     if(capturedLength < EthernetHeaderLength) {
         std::cerr << "Truncated Ethernet header\n";
-        return;
+        return false;
     }
     // Destination MAC is 6 bytes ( i = 0 -> 5)
     for(int i = 0; i < 6; ++i) {
@@ -620,15 +655,19 @@ void parseEthernet(const u_char* data, std::size_t capturedLength, PacketInfo& p
 
     // Determine network protocol IPv4
     if(packetInfo.etherType == 0x0800) {
-        parseIPv4(data, capturedLength, EthernetHeaderLength, packetInfo);
+        return parseIPv4(data, capturedLength, EthernetHeaderLength, packetInfo);
     }
+    // Ethernet parsed successfully
+    return true;
 }
 
 /**
  * parsePacket
+ * Parses one captured packet and returns its decoded information
  */
 PacketInfo parsePacket(const u_char* data, std::size_t capturedLength) {
     PacketInfo packetInfo;
-    parseEthernet(data, capturedLength, packetInfo);
+    // Mark the packet valid only if top-level Ethernet parsing succeeds
+    packetInfo.parseSuccessful = parseEthernet(data, capturedLength, packetInfo);
     return packetInfo;
 }

@@ -150,6 +150,9 @@ TcpFlowkey makeTcpFlowkey(const PacketInfo& packetInfo);
 // Stores packet information
 struct PacketInfo {
 
+    // True when all required headers for this packet were parsed successfully
+    bool parseSuccessful = false;
+
     // Ethernet
     std::array<std::uint8_t, 6> destinationMac{};
     std::array<std::uint8_t, 6> sourceMac{};
@@ -160,6 +163,9 @@ struct PacketInfo {
     std::uint8_t ihl = 0;
     std::size_t ipHeaderLength = 0;
     std::uint16_t ipTotalLength = 0;
+    // True when IPv4 Total Length was reconstructed from the captured frame
+    // because the raw field was zero in a locally captured offloaded packet
+    bool ipTotalLengthDerived = false;      // TCP Segmentation Offload correction
     std::uint8_t ipProtocol = 0;
     Ipv4Address sourceIp{};
     Ipv4Address destinationIp{};

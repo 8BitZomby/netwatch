@@ -15,7 +15,15 @@
 void printRequestedOutput(const CaptureAnalysisResult& analysisResult, const CommandLineOptions& options) {
    // Print the default capture summary
     std::cout << "Packets processed: " << analysisResult.packetCount << "\n"
-            << "IPv4 packets: " << analysisResult.ipv4PacketCount << "\n"
+            << "Malformed/Truncated packets: " << analysisResult.malformedPacketCount << "\n";
+    
+    if(options.analysisOptions.hasPortFilter || options.analysisOptions.hasSourcePortFilter || 
+            options.analysisOptions.hasDestinationPortFilter || options.analysisOptions.hasIpFilter || 
+            options.analysisOptions.hasSourceIpFilter || options.analysisOptions.hasDestinationIpFilter) {
+        std::cout << "Packets selected: " << analysisResult.selectedPacketCount << "\n";
+    }
+
+    std::cout << "IPv4 packets: " << analysisResult.ipv4PacketCount << "\n"
             << "  TCP packets: " << analysisResult.tcpPacketCount << "\n"
             << "    TCP flows: " << analysisResult.tcpFlowSummaries.size() << "\n"
             << "  UDP packets: " << analysisResult.udpPacketCount << "\n"

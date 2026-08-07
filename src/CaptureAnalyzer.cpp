@@ -62,13 +62,26 @@ CaptureAnalysisResult analyzeCapture(const std::string& capturePath, const Analy
     // Process the capture one packet at a time
     while(pcap_next_ex(capture, &header, &data) == 1) {
 
+        // Count every packet record so malformed records remain in total
+        ++analysisResult.packetCount;
+
         // Parse the current packet into structured packet information
         PacketInfo packetInfo = parsePacket(data, header->caplen);
 
-        // Skip packets that do not satisfy the requested filters
-        if(!packetMatchesFilters(packetInfo, options)) {
+        // Count malformed or truncated packets, then skip further analysis
+        if(!packetInfo.parseSuccessful) {
+            ++analysisResult.malformedPacketCount;
             continue;
         }
+
+        // Skip packets that do not satisfy the requested filters
+        if(!packetMatchesFilters(packetInfo, options)) {
+            // If packet doesnt match filter, skip packet
+            continue;
+        }
+
+        // Count successfully parsed packets selected for analysis
+        ++analysisResult.selectedPacketCount;
 
         // Retain decoded packet details only when packet-level output was requested
         if(options.retainPackets) {
@@ -79,9 +92,6 @@ CaptureAnalysisResult analyzeCapture(const std::string& capturePath, const Analy
         double timestampSeconds =
                 static_cast<double>(header->ts.tv_sec) +
                 static_cast<double>(header->ts.tv_usec) / 1000000.0;
-
-        // Count every successfully read packet
-        ++analysisResult.packetCount;
 
         // Count IPv4 packets
         if(packetInfo.ipVersion == 4) {

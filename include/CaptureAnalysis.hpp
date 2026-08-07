@@ -23,6 +23,12 @@ struct CaptureAnalysisResult {
     // Total number of packets read from the capture
     std::uint64_t packetCount = 0;
 
+    // Packets read from the capture but rejected as malformed or truncated
+    std::uint64_t malformedPacketCount = 0;
+
+    // Successfully parsed packets selected for analysis after active filters
+    std::uint64_t selectedPacketCount = 0;
+
     // Link-layer type reported by libpcap for this capture
     int linkType = 0;
 
