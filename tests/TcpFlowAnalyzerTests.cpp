@@ -1242,6 +1242,12 @@ bool testDerivedIPv4LengthForTSOPacket() {
         passed = false;
     }
 
+    // TCP checksum should not be trusted before offload processing is complete
+    if(packetInfo.tcpChecksumChecked) {
+        std::cerr << "FAILED: TSO-derived TCP checksum should not be checked\n";
+        passed = false;
+    }
+
     // Verify that the parser records that the IPv4 length was derived
     if(!packetInfo.ipTotalLengthDerived) {
         std::cerr << "FAILED: TSO-derived IPv4 length should be marked as derived\n";

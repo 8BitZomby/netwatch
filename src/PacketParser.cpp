@@ -408,10 +408,12 @@ bool parseTCP(const u_char* data, std::size_t capturedLength, std::size_t transp
         std::cerr << "Truncated TCP segment\n";
         return false;
     }
-    // Validate and store TCP checksum result
-    packetInfo.tcpChecksumValid = validateTCPChecksum(data, transportOffset, packetInfo);
-    // Update checksum checked flag
-    packetInfo.tcpChecksumChecked = true;
+
+    // TCP checksum in locally captured offloaded packets may not be finalized yet
+    if(!packetInfo.ipTotalLengthDerived) {
+        packetInfo.tcpChecksumValid = validateTCPChecksum(data, transportOffset, packetInfo);
+        packetInfo.tcpChecksumChecked = true;
+    }
 
     // TCP header parsed successfully
     return true;
